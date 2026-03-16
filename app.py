@@ -948,3 +948,165 @@ if __name__ == "__main__":
     print("👉 http://localhost:5000")
     print("🔐 admin / petanque\n")
     app.run(debug=True, host="0.0.0.0", port=5000)
+
+# ═══════════════════════════════════════════════════════════
+# RESET MOT DE PASSE PAR EMAIL
+# ═══════════════════════════════════════════════════════════
+
+import smtplib
+import secrets
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Fichier de config SMTP (éditable sans toucher au code)
+SMTP_CONFIG_FILE = Path("smtp_config.json")
+# Tokens temporaires en mémoire {token: {username, expire}}
+_reset_tokens: dict = {}
+
+
+def charger_smtp_config() -> dict:
+    """Charge la config SMTP depuis smtp_config.json."""
+    if SMTP_CONFIG_FILE.exists():
+        try:
+            return json.loads(SMTP_CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    # Config par défaut (Gmail)
+    default = {
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_user": "",           # Ton adresse Gmail
+        "smtp_password": "",       # Mot de passe d'application Gmail
+        "from_email": "",          # Même adresse
+        "from_name": "Pétanque Salles sur l'Hers"
+    }
+    SMTP_CONFIG_FILE.write_text(json.dumps(default, ensure_ascii=False, indent=2), encoding="utf-8")
+    return default
+
+
+def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
+    """Envoie l'email de réinitialisation. Retourne True si succès."""
+    cfg = charger_smtp_config()
+    if not cfg.get("smtp_user") or not cfg.get("smtp_password"):
+        return False
+
+    lien = f"http://localhost:5000/reset-mdp/{token}"
+    corps_html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
+      <h2 style="color:#1A3A5C;">Réinitialisation de mot de passe</h2>
+      <p>Bonjour <strong>{username}</strong>,</p>
+      <p>Une demande de réinitialisation de mot de passe a été effectuée pour votre compte.</p>
+      <p style="margin:1.5rem 0;">
+        <a href="{lien}" style="background:#F5A623;color:#111;padding:.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:bold;">
+          Réinitialiser mon mot de passe
+        </a>
+      </p>
+      <p style="color:#666;font-size:.85rem;">Ce lien est valable 30 minutes. Si vous n'avez pas fait cette demande, ignorez cet email.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:1.5rem 0;">
+      <p style="color:#999;font-size:.8rem;">{cfg.get('from_name','Pétanque')}</p>
+    </div>
+    """
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Réinitialisation de mot de passe — Pétanque"
+        msg["From"]    = f"{cfg['from_name']} <{cfg['from_email'] or cfg['smtp_user']}>"
+        msg["To"]      = dest_email
+        msg.attach(MIMEText(corps_html, "html", "utf-8"))
+
+        with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"]) as server:
+            server.starttls()
+            server.login(cfg["smtp_user"], cfg["smtp_password"])
+            server.send_message(msg)
+        return True
+    except Exception as ex:
+        print(f"Erreur envoi email: {ex}")
+        return False
+
+
+@app.route("/mot-de-passe-oublie", methods=["GET", "POST"])
+def mot_de_passe_oublie():
+    """Page de demande de reset."""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip().lower()
+        users = charger_users()
+        user = users.get(username)
+
+        if user and user.get("email"):
+            # Générer token valable 30 min
+            token = secrets.token_urlsafe(32)
+            expire = datetime.now().timestamp() + 1800  # 30 min
+            _reset_tokens[token] = {"username": username, "expire": expire}
+
+            if envoyer_email_reset(user["email"], username, token):
+                flash(f"✅ Email envoyé à l'adresse enregistrée pour « {username} ».", "success")
+            else:
+                flash("❌ Erreur d'envoi. Vérifiez la configuration SMTP dans smtp_config.json.", "error")
+        else:
+            # Même message pour ne pas révéler si le compte existe
+            flash("✅ Si ce compte existe et a une adresse email, un lien a été envoyé.", "info")
+
+        return redirect(url_for("login"))
+    return render_template("mdp_oublie.html")
+
+
+@app.route("/reset-mdp/<token>", methods=["GET", "POST"])
+def reset_mdp_token(token):
+    """Page de saisie du nouveau mot de passe via token."""
+    # Vérifier token
+    token_data = _reset_tokens.get(token)
+    if not token_data or datetime.now().timestamp() > token_data["expire"]:
+        flash("❌ Lien expiré ou invalide. Faites une nouvelle demande.", "error")
+        _reset_tokens.pop(token, None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        nouveau  = request.form.get("nouveau", "").strip()
+        confirm  = request.form.get("confirmation", "").strip()
+        if len(nouveau) < 4:
+            flash("❌ Minimum 4 caractères.", "error")
+        elif nouveau != confirm:
+            flash("❌ Les mots de passe ne correspondent pas.", "error")
+        else:
+            users = charger_users()
+            username = token_data["username"]
+            if username in users:
+                users[username]["mdp_hash"] = hasher_mdp(nouveau)
+                sauvegarder_users(users)
+                _reset_tokens.pop(token, None)
+                flash("✅ Mot de passe modifié ! Vous pouvez vous connecter.", "success")
+                return redirect(url_for("login"))
+
+    return render_template("reset_mdp.html", token=token)
+
+
+@app.route("/smtp-config", methods=["GET", "POST"])
+@admin_requis
+def smtp_config():
+    """Page de configuration SMTP (admin)."""
+    cfg = charger_smtp_config()
+    if request.method == "POST":
+        cfg["smtp_host"]     = request.form.get("smtp_host", "smtp.gmail.com")
+        cfg["smtp_port"]     = int(request.form.get("smtp_port", 587))
+        cfg["smtp_user"]     = request.form.get("smtp_user", "")
+        cfg["smtp_password"] = request.form.get("smtp_password", "")
+        cfg["from_email"]    = request.form.get("from_email", "")
+        cfg["from_name"]     = request.form.get("from_name", "Pétanque")
+        SMTP_CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        flash("✅ Configuration SMTP sauvegardée.", "success")
+        return redirect(url_for("comptes"))
+    return render_template("smtp_config.html", concours=concours, cfg=cfg)
+
+
+@app.route("/ajouter_email_compte", methods=["POST"])
+@admin_requis
+def ajouter_email_compte():
+    """Ajoute/met à jour l'email d'un compte."""
+    users = charger_users()
+    username = request.form.get("username", "")
+    email    = request.form.get("email", "").strip()
+    if username in users:
+        users[username]["email"] = email
+        sauvegarder_users(users)
+        flash(f"✅ Email de « {username} » mis à jour.", "success")
+    return redirect(url_for("comptes"))
