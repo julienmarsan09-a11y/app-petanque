@@ -19,8 +19,14 @@ from db import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "petanque_salles_hers_2024")
 
-# Initialise les tables PostgreSQL au démarrage
-init_db()
+# Initialise les tables PostgreSQL en arrière-plan (ne bloque pas gunicorn)
+import threading
+def _init_db_bg():
+    try:
+        init_db()
+    except Exception as e:
+        print(f'⚠️  init_db error: {e}')
+threading.Thread(target=_init_db_bg, daemon=True).start()
 
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
 
