@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ concours.nom }} — Pétanque</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg:        #0A0C10;
@@ -33,7 +33,7 @@
         html { scroll-behavior: smooth; }
 
         body {
-            font-family: 'Barlow', sans-serif;
+            font-family: 'Barlow', 'Noto Color Emoji', sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
@@ -107,6 +107,11 @@
         }
 
         .logo-sub {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
             font-size: .65rem;
             color: var(--text3);
             text-transform: uppercase;
@@ -480,6 +485,23 @@
             font-weight: 900;
             line-height: 1;
         }
+
+        /* ── MÉDAILLES (CSS pur, compatible tous OS) ── */
+        .pos-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: .85rem;
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+        .pos-1 { background: linear-gradient(135deg,#F5A623,#C47B00); color: #111; }
+        .pos-2 { background: linear-gradient(135deg,#94A3B8,#64748B); color: #fff; }
+        .pos-3 { background: linear-gradient(135deg,#C47D3B,#8B5A20); color: #fff; }
+        .pos-n { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); font-size:.8rem; }
     </style>
 </head>
 <body>
@@ -494,7 +516,7 @@
             {% endif %}
             <div>
                 <div class="logo-text">Pétanque</div>
-                <div class="logo-sub" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ concours.association or 'Salles sur l\'Hers' }}</div>
+                <div class="logo-sub">{{ concours.association or 'Salles sur l\'Hers' }}</div>
             </div>
         </a>
 

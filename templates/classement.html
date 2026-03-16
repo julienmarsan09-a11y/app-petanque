@@ -19,7 +19,7 @@
   <div class="card-body" style="display:flex;flex-wrap:wrap;gap:.75rem;">
     {% for place, desc in lots.items() %}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.65rem 1rem;display:flex;align-items:center;gap:.6rem;">
-      <span>{{ '🥇' if place==1 else ('🥈' if place==2 else ('🥉' if place==3 else '🎖️')) }}</span>
+      <span class="pos-badge {% if place==1 %}pos-1{% elif place==2 %}pos-2{% elif place==3 %}pos-3{% else %}pos-n{% endif %}">{{ place }}</span>
       <span style="font-weight:600;font-size:.88rem;">{{ desc }}</span>
     </div>
     {% endfor %}
@@ -76,7 +76,11 @@
       {% for equipe in equipes %}
       <tr style="{% if loop.index<=3 %}background:rgba(245,166,35,0.03);{% endif %}">
         <td style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;">
-          {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}<span style="color:var(--text3);">{{ loop.index }}</span>{% endif %}
+          {%- if loop.index==1 -%}<span class="pos-badge pos-1">1</span>
+        {%- elif loop.index==2 -%}<span class="pos-badge pos-2">2</span>
+        {%- elif loop.index==3 -%}<span class="pos-badge pos-3">3</span>
+        {%- else -%}<span class="pos-badge pos-n">{{ loop.index }}</span>
+        {%- endif -%}
         </td>
         <td>
           <div style="font-weight:600;color:var(--text);">{{ equipe.nom }}</div>
