@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1 class="page-title">⚡ Tour {{ tour }} / {{ concours.nb_tours }}</h1>
+    <p class="page-subtitle">{{ matchs|length }} match(s) · {{ matchs|selectattr('termine')|list|length }} terminé(s) · Score à {{ score_requis }} pts</p>
+  </div>
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+    <a href="{{ url_for('classement_final') }}" class="btn btn-outline">🏆 Classement</a>
+    <a href="{{ url_for('imprimer') }}" class="btn btn-outline" target="_blank">🖨️ Imprimer</a>
+    {% if tous_termines %}
+      {% if tour < concours.nb_tours %}
+      <a href="{{ url_for('prochain_tour') }}" class="btn btn-success" style="font-size:1rem;padding:.75rem 1.5rem;">➡️ Tour {{ tour+1 }}</a>
+      {% else %}
+      <a href="{{ url_for('prochain_tour') }}" class="btn btn-or" style="font-size:1rem;padding:.75rem 1.5rem;">🏆 Suite</a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Navigation tours -->
+{% if concours.tour_actuel > 1 %}
+<div style="display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+  {% for t in range(1, concours.tour_actuel+1) %}
+  <a href="{{ url_for('matchs_tour', tour=t) }}" class="btn {% if t==tour %}btn-primary{% else %}btn-outline{% endif %}" style="padding:.4rem .9rem;">Tour {{ t }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div style="display:flex;flex-direction:column;gap:1rem;">
+{% for match in matchs %}
+{% set eq1 = equipes[match.equipe1_id] %}
+{% set eq2 = equipes[match.equipe2_id] %}
+<div class="card" style="border-left:4px solid {% if match.est_forfait %}var(--cochonnet){% elif match.termine %}var(--herbe){% elif match.est_rematche %}var(--or){% else %}var(--sable-fonce){% endif %};">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;color:var(--texte-doux);font-size:.82rem;flex-wrap:wrap;">
+      <span>🟫 Terrain {{ match.terrain }}</span>
+      <span>·</span>
+      <span>{% if match.est_forfait %}🏳️ Forfait{% elif match.termine %}✅ Terminé{% else %}⏳ En attente{% endif %}</span>
+      {% if match.est_rematche %}<span>·</span><span style="background:#FEF3C7;color:#92400E;padding:.15rem .5rem;border-radius:4px;font-weight:600;">⚠️ Rematche</span>{% endif %}
+      {% if match.est_nul %}<span>·</span><span style="background:#DBEAFE;color:#1E40AF;padding:.15rem .5rem;border-radius:4px;font-weight:600;">🤝 Égalité (+0.5)</span>{% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem;">
+      <div style="text-align:right;">
+        <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:1.1rem;
+          color:{% if match.termine and match.score1 > match.score2 %}var(--herbe){% elif match.termine %}var(--texte-doux){% else %}var(--boule){% endif %};">
+          {{ eq1.nom }} {% if match.termine and match.score1 > match.score2 %}🏅{% endif %}
+        </div>
+        {% if eq1.joueurs %}<div class="text-muted" style="font-size:.8rem;">{{ eq1.joueurs|join(', ') }}</div>{% endif %}
+        <div style="font-size:.75rem;color:var(--herbe);">{{ eq1.points }} pt{% if eq1.points != 1 %}s{% endif %}</div>
+      </div>
+
+      <div style="text-align:center;">
+        {% if match.termine %}
+        <div style="display:flex;align-items:center;gap:.75rem;">
+          <span style="font-size:2rem;font-weight:900;color:{% if match.score1>match.score2 %}var(--herbe){% elif match.score1==match.score2 %}var(--or){% else %}var(--texte-doux){% endif %};">{{ match.score1 }}</span>
+          <span style="color:var(--texte-doux);">–</span>
+          <span style="font-size:2rem;font-weight:900;color:{% if match.score2>match.score1 %}var(--herbe){% elif match.score1==match.score2 %}var(--or){% else %}var(--texte-doux){% endif %};">{{ match.score2 }}</span>
+        </div>
+        {% else %}
+        <span style="font-size:1.5rem;color:var(--sable-fonce);">VS</span>
+        {% endif %}
+      </div>
+
+      <div style="text-align:left;">
+        <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:1.1rem;
+          color:{% if match.termine and match.score2>match.score1 %}var(--herbe){% elif match.termine %}var(--texte-doux){% else %}var(--boule){% endif %};">
+          {% if match.termine and match.score2>match.score1 %}🏅{% endif %} {{ eq2.nom }}
+        </div>
+        {% if eq2.joueurs %}<div class="text-muted" style="font-size:.8rem;">{{ eq2.joueurs|join(', ') }}</div>{% endif %}
+        <div style="font-size:.75rem;color:var(--herbe);">{{ eq2.points }} pt{% if eq2.points != 1 %}s{% endif %}</div>
+      </div>
+    </div>
+
+    {% if not match.termine and session.role in ['admin','saisie'] %}
+    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--sable-fonce);">
+      <!-- Score normal -->
+      <form method="POST" action="{{ url_for('saisir_score', match_id=match.id) }}"
+            style="display:flex;align-items:flex-end;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem;">
+        <input type="hidden" name="action" value="score">
+        <div style="flex:1;min-width:110px;">
+          <label style="font-size:.8rem;">{{ eq1.nom }}</label>
+          <input type="number" name="score1" min="0" max="{{ score_requis }}" placeholder="Score" required style="text-align:center;font-size:1.1rem;font-weight:700;">
+        </div>
+        <div style="padding-bottom:.65rem;color:var(--texte-doux);font-weight:700;">–</div>
+        <div style="flex:1;min-width:110px;">
+          <label style="font-size:.8rem;">{{ eq2.nom }}</label>
+          <input type="number" name="score2" min="0" max="{{ score_requis }}" placeholder="Score" required style="text-align:center;font-size:1.1rem;font-weight:700;">
+        </div>
+        <button type="submit" class="btn btn-success" style="padding:.65rem 1.25rem;">✅ Valider</button>
+      </form>
+      <small class="text-muted">Le gagnant marque {{ score_requis }} pts. Égalité possible ({{ score_requis }} – {{ score_requis }}) → 0.5 pt chacun.</small>
+
+      <!-- Forfait -->
+      {% if session.role == 'admin' %}
+      <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px dashed var(--sable-fonce);display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:.85rem;color:var(--texte-doux);">🏳️ Forfait :</span>
+        <form method="POST" action="{{ url_for('saisir_score', match_id=match.id) }}" style="display:inline;">
+          <input type="hidden" name="action" value="forfait">
+          <input type="hidden" name="equipe_forfait_id" value="{{ eq1.id }}">
+          <button type="submit" class="btn btn-danger" style="padding:.3rem .7rem;font-size:.82rem;" onclick="return confirm('Déclarer {{ eq1.nom }} forfait ?')">{{ eq1.nom }}</button>
+        </form>
+        <form method="POST" action="{{ url_for('saisir_score', match_id=match.id) }}" style="display:inline;">
+          <input type="hidden" name="action" value="forfait">
+          <input type="hidden" name="equipe_forfait_id" value="{{ eq2.id }}">
+          <button type="submit" class="btn btn-danger" style="padding:.3rem .7rem;font-size:.82rem;" onclick="return confirm('Déclarer {{ eq2.nom }} forfait ?')">{{ eq2.nom }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+</div>
+
+{% if tous_termines %}
+<div class="card mt-3" style="border:2px solid var(--herbe);text-align:center;padding:1.5rem;">
+  <div style="font-size:2rem;margin-bottom:.5rem;">🎉</div>
+  <div style="font-weight:700;font-size:1.1rem;margin-bottom:1rem;">Tour {{ tour }} terminé !</div>
+  {% if tour < concours.nb_tours %}
+  <a href="{{ url_for('prochain_tour') }}" class="btn btn-success" style="font-size:1rem;padding:.75rem 2rem;">➡️ Tour {{ tour+1 }}</a>
+  {% else %}
+  <a href="{{ url_for('prochain_tour') }}" class="btn btn-or" style="font-size:1rem;padding:.75rem 2rem;">🏆 Phase suivante</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex justify-between items-center" style="margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1 class="page-title">📦 <span>Archives</span></h1>
+    <p class="page-subtitle">Historique des concours de {{ concours.association }}</p>
+  </div>
+  {% if archives %}
+  <div class="text-small">{{ archives|length }} concours archivé{% if archives|length > 1 %}s{% endif %}</div>
+  {% endif %}
+</div>
+
+{% if archives %}
+<div style="display:flex;flex-direction:column;gap:.75rem;">
+  {% for arch in archives %}
+  <div class="card">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+      <div style="flex:1;min-width:200px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.2rem;text-transform:uppercase;color:var(--text);">
+          {{ arch.nom }}
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.3rem;">
+          {% if arch.date_concours and arch.date_concours != '?' %}
+          <span class="text-small">📅 {{ arch.date_concours }}</span>
+          {% endif %}
+          <span class="text-small">📍 {{ arch.lieu }}</span>
+          <span class="text-small">👥 {{ arch.nb_equipes }} équipes</span>
+          <span class="pill pill-gray">{{ arch.statut }}</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:.25rem;">
+          Enregistré le {{ arch.date_creation }}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="{{ url_for('voir_archive', fichier=arch.fichier) }}" class="btn btn-ghost" style="font-size:.85rem;">
+          📊 Voir
+        </a>
+        <a href="{{ url_for('imprimer_archive', fichier=arch.fichier) }}" class="btn btn-ghost" target="_blank" style="font-size:.85rem;">
+          🖨 PDF
+        </a>
+        {% if session.role == 'admin' %}
+        <form method="POST" action="{{ url_for('supprimer_archive', fichier=arch.fichier) }}"
+              onsubmit="return confirm('Supprimer définitivement le concours « {{ arch.nom }} » ?\nCette action est irréversible.')">
+          <button type="submit" class="btn btn-danger" style="font-size:.82rem;padding:.45rem .8rem;">
+            🗑 Supprimer
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center" style="padding:4rem;">
+    <div style="font-size:3.5rem;margin-bottom:1rem;opacity:.3;">📦</div>
+    <div style="font-weight:700;color:var(--text2);margin-bottom:.5rem;">Aucun concours archivé</div>
+    <div class="text-small">Les concours terminés apparaîtront ici automatiquement.</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

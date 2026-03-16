@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">🔑 Mon compte</h1>
+<p class="page-subtitle">{{ session.nom }} · {{ session.role }}</p>
+
+<div style="max-width: 480px;">
+    <div class="card">
+        <div class="card-header"><span>🔒</span><h2>Changer mon mot de passe</h2></div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="form-group">
+                    <label>Mot de passe actuel</label>
+                    <input type="password" name="actuel" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Nouveau mot de passe</label>
+                    <input type="password" name="nouveau" required minlength="4">
+                </div>
+                <div class="form-group">
+                    <label>Confirmer le nouveau mot de passe</label>
+                    <input type="password" name="confirmation" required minlength="4">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+                    ✅ Changer le mot de passe
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div style="text-align:center;margin-top:1.5rem;">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline">👋 Se déconnecter</a>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="flex justify-between items-center mb-2" style="flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h1 class="page-title">🏆 Phase Finale</h1>
+        <p class="page-subtitle">Élimination directe · {{ matchs|length }} match(s) · Score à {{ concours.score_victoire }}</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="{{ url_for('classement_final') }}" class="btn btn-outline">📊 Classement suisse</a>
+        <a href="{{ url_for('imprimer') }}" class="btn btn-outline" target="_blank">🖨️ Imprimer</a>
+        {% if tous_termines %}
+        <a href="{{ url_for('terminer_finale') }}" class="btn btn-or" style="font-size: 1rem; padding: 0.75rem 1.5rem;">
+            🏆 Résultats finaux
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bracket visuel -->
+<div style="display: flex; flex-direction: column; gap: 1rem;">
+    {% for match in matchs %}
+    {% set eq1 = equipes[match.equipe1_id] %}
+    {% set eq2 = equipes[match.equipe2_id] %}
+
+    <div class="card" style="border-left: 4px solid var(--or);">
+        <div class="card-body">
+            <!-- Label du match -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                <span style="background: var(--or); color: white; padding: 0.2rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+                    {{ match.label if match.label else "Match" }}
+                </span>
+                <span style="color: var(--texte-doux); font-size: 0.82rem;">🟫 Terrain {{ match.terrain }}</span>
+                <span style="color: var(--texte-doux); font-size: 0.82rem;">·</span>
+                <span style="color: var(--texte-doux); font-size: 0.82rem;">
+                    {% if match.termine %}✅ Terminé{% else %}⏳ En attente{% endif %}
+                </span>
+            </div>
+
+            <!-- Affichage match -->
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem;">
+                <div style="text-align: right;">
+                    <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.2rem;
+                         color: {% if match.termine and match.score1 > match.score2 %}var(--or){% elif match.termine %}var(--texte-doux){% else %}var(--boule){% endif %};">
+                        {{ eq1.nom }}
+                        {% if match.termine and match.score1 > match.score2 %}👑{% endif %}
+                    </div>
+                    {% if eq1.joueurs %}<div class="text-muted" style="font-size: 0.8rem;">{{ eq1.joueurs|join(', ') }}</div>{% endif %}
+                    {% if not match.termine %}
+                    <div style="font-size: 0.75rem; color: var(--herbe); margin-top: 0.25rem;">
+                        {{ eq1.points }} victoire(s) en suisse
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div style="text-align: center;">
+                    {% if match.termine %}
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 2rem; font-weight: 900; color: {% if match.score1 > match.score2 %}var(--or){% else %}var(--texte-doux){% endif %};">{{ match.score1 }}</span>
+                        <span style="color: var(--texte-doux);">–</span>
+                        <span style="font-size: 2rem; font-weight: 900; color: {% if match.score2 > match.score1 %}var(--or){% else %}var(--texte-doux){% endif %};">{{ match.score2 }}</span>
+                    </div>
+                    {% else %}
+                    <span style="font-size: 1.5rem; color: var(--sable-fonce);">VS</span>
+                    {% endif %}
+                </div>
+
+                <div style="text-align: left;">
+                    <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.2rem;
+                         color: {% if match.termine and match.score2 > match.score1 %}var(--or){% elif match.termine %}var(--texte-doux){% else %}var(--boule){% endif %};">
+                        {% if match.termine and match.score2 > match.score1 %}👑{% endif %}
+                        {{ eq2.nom }}
+                    </div>
+                    {% if eq2.joueurs %}<div class="text-muted" style="font-size: 0.8rem;">{{ eq2.joueurs|join(', ') }}</div>{% endif %}
+                    {% if not match.termine %}
+                    <div style="font-size: 0.75rem; color: var(--herbe); margin-top: 0.25rem;">
+                        {{ eq2.points }} victoire(s) en suisse
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not match.termine %}
+            <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--sable-fonce);">
+                <form method="POST" action="{{ url_for('saisir_score', match_id=match.id) }}"
+                      style="display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.8rem;">{{ eq1.nom }}</label>
+                        <input type="number" name="score1" min="0" max="{{ concours.score_victoire }}"
+                               placeholder="Score" required style="text-align: center; font-size: 1.1rem; font-weight: 700;">
+                    </div>
+                    <div style="padding-bottom: 0.65rem; color: var(--texte-doux); font-weight: 700;">–</div>
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.8rem;">{{ eq2.nom }}</label>
+                        <input type="number" name="score2" min="0" max="{{ concours.score_victoire }}"
+                               placeholder="Score" required style="text-align: center; font-size: 1.1rem; font-weight: 700;">
+                    </div>
+                    <button type="submit" class="btn btn-or" style="padding: 0.65rem 1.25rem;">✅ Valider</button>
+                </form>
+                <small class="text-muted" style="margin-top: 0.4rem; display: block;">
+                    Le gagnant doit avoir {{ concours.score_victoire }} points.
+                </small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if tous_termines %}
+<div class="card mt-3" style="border: 2px solid var(--or); text-align: center; padding: 1.5rem;">
+    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎉</div>
+    <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem;">Phase finale terminée !</div>
+    <a href="{{ url_for('terminer_finale') }}" class="btn btn-or" style="font-size: 1rem; padding: 0.75rem 2rem;">
+        🏆 Voir le classement final
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}
