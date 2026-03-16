@@ -5,34 +5,35 @@
 from flask import (Flask, render_template, request, redirect, url_for,
                    jsonify, flash, Response, session, send_file)
 from dataclasses import dataclass, field, asdict
-import json, random, hashlib, os
+import json, random, hashlib, os, base64
 from pathlib import Path
 from datetime import datetime
 from functools import wraps
 
+from db import (
+    init_db,
+    kv_get, kv_set, kv_delete,
+    archive_save, archive_list, archive_get, archive_delete,
+)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "petanque_salles_hers_2024")
 
-DATA_FILE   = Path("concours_data.json")
-USERS_FILE  = Path("users.json")
-ARCHIVE_DIR = Path("archives")
-ARCHIVE_DIR.mkdir(exist_ok=True)
+# Initialise les tables PostgreSQL au démarrage
+init_db()
 
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
 
 def has_logo():
-    """Vérifie si un logo est présent sur le disque."""
-    for ext in ALLOWED_EXTENSIONS:
-        if Path(f"logo{ext}").exists():
-            return True
-    return False
+    """Vérifie si un logo est présent en base."""
+    return kv_get("logo_data") is not None
 
-# ✅ Enregistré ICI, au niveau module, avant toute route
 app.jinja_env.globals['has_logo'] = has_logo
 
 @app.context_processor
 def inject_now():
     return {'now': datetime.now()}
+
 
 # ═══════════════════════════════════════════════════════════
 # AUTH
@@ -42,18 +43,16 @@ def hasher_mdp(mdp):
     return hashlib.sha256(mdp.encode()).hexdigest()
 
 def charger_users():
-    if USERS_FILE.exists():
-        try:
-            return json.loads(USERS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    data = kv_get("users")
+    if data:
+        return data
     users = {"admin": {"mdp_hash": hasher_mdp("petanque"), "role": "admin", "nom": "Administrateur"}}
-    USERS_FILE.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+    kv_set("users", users)
     print("✅ Compte créé  →  admin / petanque")
     return users
 
 def sauvegarder_users(users):
-    USERS_FILE.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+    kv_set("users", users)
 
 def login_requis(f):
     @wraps(f)
@@ -174,13 +173,13 @@ class Concours:
 
 
 # ═══════════════════════════════════════════════════════════
-# PERSISTENCE
+# PERSISTENCE — PostgreSQL
 # ═══════════════════════════════════════════════════════════
 
 def charger_concours():
-    if DATA_FILE.exists():
+    data = kv_get("concours_data")
+    if data:
         try:
-            data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
             c = Concours()
             for attr in ["nom","association","lieu","date_concours","heure_debut",
                          "contact","description","format","type_equipe",
@@ -227,7 +226,7 @@ def sauvegarder_concours(c):
     data["lots"]    = c.lots
     data["equipes"] = [asdict(e) for e in c.equipes]
     data["matchs"]  = [asdict(m) for m in c.matchs]
-    DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    kv_set("concours_data", data)
 
 
 def archiver_concours(c):
@@ -235,7 +234,6 @@ def archiver_concours(c):
         return
     horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
     nom_fichier = f"{horodatage}_{c.nom[:40].replace(' ','_')}.json"
-    dest = ARCHIVE_DIR / nom_fichier
     data = {a: getattr(c, a) for a in
             ["nom","association","lieu","date_concours","heure_debut",
              "contact","description","format","type_equipe",
@@ -244,37 +242,16 @@ def archiver_concours(c):
     data["lots"]    = c.lots
     data["equipes"] = [asdict(e) for e in c.equipes]
     data["matchs"]  = [asdict(m) for m in c.matchs]
-    dest.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    archive_save(nom_fichier, data)
     return nom_fichier
 
 
 def charger_archives():
-    archives = []
-    for f in sorted(ARCHIVE_DIR.glob("*.json"), reverse=True):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            archives.append({
-                "fichier": f.name,
-                "nom": data.get("nom","?"),
-                "date_concours": data.get("date_concours","?"),
-                "lieu": data.get("lieu","?"),
-                "nb_equipes": len(data.get("equipes", [])),
-                "statut": data.get("statut","?"),
-                "date_creation": data.get("date_creation","?"),
-            })
-        except Exception:
-            pass
-    return archives
+    return archive_list()
 
 
 def charger_archive(fichier):
-    f = ARCHIVE_DIR / fichier
-    if not f.exists():
-        return None
-    try:
-        return json.loads(f.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    return archive_get(fichier)
 
 
 concours = charger_concours()
@@ -537,16 +514,16 @@ tr:nth-child(even) td{{background:#f5f5f5}}.mt th,.mt td{{font-size:10px}}
 
 
 # ═══════════════════════════════════════════════════════════
-# ROUTES LOGO
+# ROUTES LOGO — stockage base64 en PostgreSQL
 # ═══════════════════════════════════════════════════════════
 
 @app.route("/logo")
 def serve_logo():
-    for ext in ALLOWED_EXTENSIONS:
-        f = Path(f"logo{ext}")
-        if f.exists():
-            return send_file(f)
-    return "", 404
+    data = kv_get("logo_data")
+    if not data:
+        return "", 404
+    img_bytes = base64.b64decode(data["b64"])
+    return Response(img_bytes, mimetype=data["mimetype"])
 
 @app.route("/logo/upload", methods=["POST"])
 @admin_requis
@@ -562,22 +539,16 @@ def upload_logo():
     if ext not in ALLOWED_EXTENSIONS:
         flash(f"❌ Format non supporté ({', '.join(ALLOWED_EXTENSIONS)})", "error")
         return redirect(url_for("configurer"))
-    for old_ext in ALLOWED_EXTENSIONS:
-        old = Path(f"logo{old_ext}")
-        if old.exists():
-            old.unlink()
-    dest = Path(f"logo{ext}")
-    f.save(str(dest))
+    mimetype = f.content_type or "image/png"
+    b64 = base64.b64encode(f.read()).decode()
+    kv_set("logo_data", {"b64": b64, "mimetype": mimetype, "ext": ext})
     flash("✅ Logo mis à jour !", "success")
     return redirect(url_for("configurer"))
 
 @app.route("/logo/supprimer", methods=["POST"])
 @admin_requis
 def supprimer_logo():
-    for ext in ALLOWED_EXTENSIONS:
-        f = Path(f"logo{ext}")
-        if f.exists():
-            f.unlink()
+    kv_delete("logo_data")
     flash("✅ Logo supprimé.", "success")
     return redirect(url_for("configurer"))
 
@@ -793,7 +764,7 @@ def saisir_score(match_id):
         return redirect(url_for("phase_finale") if m and m.est_finale
                         else url_for("matchs_tour", tour=concours.tour_actuel))
     if enregistrer_score(match_id, score1, score2):
-        flash("🤝 Égalité — 0.5 pt chacun." if score1 == score2 else "✅ Score enregistré !", 
+        flash("🤝 Égalité — 0.5 pt chacun." if score1 == score2 else "✅ Score enregistré !",
               "info" if score1 == score2 else "success")
         sauvegarder_concours(concours)
     return redirect(url_for("phase_finale") if m and m.est_finale
@@ -864,10 +835,7 @@ def archives():
 @app.route("/archives/<fichier>/supprimer", methods=["POST"])
 @admin_requis
 def supprimer_archive(fichier):
-    """Supprime définitivement un concours archivé."""
-    f = ARCHIVE_DIR / fichier
-    if f.exists():
-        f.unlink()
+    if archive_delete(fichier):
         flash("✅ Concours supprimé des archives.", "success")
     else:
         flash("❌ Archive introuvable.", "error")
@@ -930,7 +898,7 @@ def reset():
     if concours.equipes and concours.statut != "inscription":
         archiver_concours(concours)
     concours = Concours()
-    if DATA_FILE.exists(): DATA_FILE.unlink()
+    kv_delete("concours_data")
     flash("🔄 Nouveau concours créé.", "info")
     return redirect(url_for("configurer"))
 
@@ -944,23 +912,20 @@ def api_stats():
         "statut": concours.statut,
     })
 
+
 # ═══════════════════════════════════════════════════════════
 # ROUTE PUBLIQUE — Résultats & Calendrier (sans login)
-# COLLER JUSTE AVANT : if __name__ == "__main__":
 # ═══════════════════════════════════════════════════════════
 
 @app.route("/resultats")
 def resultats_publics():
-    """Page publique visible par tous (joueurs, familles) — aucun login requis."""
     concours_list = []
 
-    # ── 1. Concours en cours (concours_data.json) ─────────────────────────────
-    if DATA_FILE.exists():
+    # Concours en cours
+    data = kv_get("concours_data")
+    if data:
         try:
-            data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-            equipes = data.get("equipes", [])
-
-            # Statut Flask → statut page publique
+            equipes    = data.get("equipes", [])
             statut_raw = data.get("statut", "inscription")
             if statut_raw == "termine":
                 js_status = "termine"
@@ -968,7 +933,6 @@ def resultats_publics():
                 js_status = "en-cours"
             else:
                 js_status = "a-venir"
-
             concours_list.append({
                 "id"          : "encours",
                 "nom"         : data.get("nom", "Concours en cours"),
@@ -985,16 +949,18 @@ def resultats_publics():
                 "classement"  : _build_classement_from_raw(equipes),
             })
         except Exception as ex:
-            print(f"[resultats_publics] Erreur lecture concours en cours : {ex}")
+            print(f"[resultats_publics] Erreur concours en cours : {ex}")
 
-    # ── 2. Archives (dossier archives/) ───────────────────────────────────────
-    for f in sorted(ARCHIVE_DIR.glob("*.json"), reverse=True):
+    # Archives
+    for arch in archive_list():
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
+            data = archive_get(arch["filename"])
+            if not data:
+                continue
             equipes = data.get("equipes", [])
             concours_list.append({
-                "id"          : f.stem,          # nom du fichier sans .json
-                "nom"         : data.get("nom", f.stem),
+                "id"          : arch["filename"].replace(".json", ""),
+                "nom"         : data.get("nom", arch["filename"]),
                 "date"        : data.get("date_concours", ""),
                 "heure"       : data.get("heure_debut", ""),
                 "lieu"        : data.get("lieu", ""),
@@ -1008,7 +974,7 @@ def resultats_publics():
                 "classement"  : _build_classement_from_raw(equipes),
             })
         except Exception as ex:
-            print(f"[resultats_publics] Erreur lecture archive {f.name} : {ex}")
+            print(f"[resultats_publics] Erreur archive {arch['filename']} : {ex}")
 
     return render_template(
         "public_resultats.html",
@@ -1018,51 +984,37 @@ def resultats_publics():
 
 
 def _build_classement_from_raw(equipes: list, top: int = 8) -> list:
-    """
-    Construit le classement depuis la liste brute des équipes (dicts JSON).
-    Tri identique à la fonction classement() :
-    points → buchholz → diff paniers → paniers marqués
-    """
     if not equipes:
         return []
-
-    # Exclure les équipes forfait
     actives = [e for e in equipes if not e.get("forfait", False)]
-
-    tries = sorted(
-        actives,
-        key=lambda e: (
-            -e.get("points", 0),
-            -e.get("buchholz", 0),
-            -(e.get("paniers_marques", 0) - e.get("paniers_encaisses", 0)),
-            -e.get("paniers_marques", 0),
-        )
-    )
-
+    tries = sorted(actives, key=lambda e: (
+        -e.get("points", 0),
+        -e.get("buchholz", 0),
+        -(e.get("paniers_marques", 0) - e.get("paniers_encaisses", 0)),
+        -e.get("paniers_marques", 0),
+    ))
     result = []
     for i, e in enumerate(tries[:top]):
         pts = e.get("points", 0)
-        # Affichage : "3" au lieu de "3.0", "2.5" si égalité
         pts_str = str(int(pts)) if pts == int(pts) else str(pts)
         result.append({
             "place"    : i + 1,
             "equipe"   : e.get("nom", "?"),
             "club"     : e.get("club", ""),
-            "victoires": int(e.get("points", 0)),   # points entiers = victoires
+            "victoires": int(e.get("points", 0)),
             "points"   : pts_str,
         })
     return result
 
 
 def _format_lots(lots: list) -> str:
-    """Transforme la liste de lots en chaîne lisible : '1er: 150€ · 2e: 80€'"""
     if not lots:
         return ""
     parties = []
     for lot in sorted(lots, key=lambda l: l.get("place", 99) if isinstance(l, dict) else 99):
         if isinstance(lot, dict):
-            place = lot.get("place", "?")
-            desc  = lot.get("description", "")
+            place    = lot.get("place", "?")
+            desc     = lot.get("description", "")
             medaille = {1: "1er", 2: "2e", 3: "3e"}.get(place, f"{place}e")
             parties.append(f"{medaille} : {desc}")
     return " · ".join(parties)
@@ -1075,6 +1027,7 @@ if __name__ == "__main__":
     print("🔐 admin / petanque\n")
     app.run(debug=True, host="0.0.0.0", port=5000)
 
+
 # ═══════════════════════════════════════════════════════════
 # RESET MOT DE PASSE PAR EMAIL
 # ═══════════════════════════════════════════════════════════
@@ -1084,39 +1037,31 @@ import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Fichier de config SMTP (éditable sans toucher au code)
 SMTP_CONFIG_FILE = Path("smtp_config.json")
-# Tokens temporaires en mémoire {token: {username, expire}}
 _reset_tokens: dict = {}
 
 
 def charger_smtp_config() -> dict:
-    """Charge la config SMTP depuis smtp_config.json."""
-    if SMTP_CONFIG_FILE.exists():
-        try:
-            return json.loads(SMTP_CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    # Config par défaut (Gmail)
+    data = kv_get("smtp_config")
+    if data:
+        return data
     default = {
         "smtp_host": "smtp.gmail.com",
         "smtp_port": 587,
-        "smtp_user": "",           # Ton adresse Gmail
-        "smtp_password": "",       # Mot de passe d'application Gmail
-        "from_email": "",          # Même adresse
+        "smtp_user": "",
+        "smtp_password": "",
+        "from_email": "",
         "from_name": "Pétanque Salles sur l'Hers"
     }
-    SMTP_CONFIG_FILE.write_text(json.dumps(default, ensure_ascii=False, indent=2), encoding="utf-8")
+    kv_set("smtp_config", default)
     return default
 
 
 def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
-    """Envoie l'email de réinitialisation. Retourne True si succès."""
     cfg = charger_smtp_config()
     if not cfg.get("smtp_user") or not cfg.get("smtp_password"):
         return False
-
-    lien = f"http://localhost:5000/reset-mdp/{token}"
+    lien = f"https://app-petanque.onrender.com/reset-mdp/{token}"
     corps_html = f"""
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
       <h2 style="color:#1A3A5C;">Réinitialisation de mot de passe</h2>
@@ -1127,19 +1072,17 @@ def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
           Réinitialiser mon mot de passe
         </a>
       </p>
-      <p style="color:#666;font-size:.85rem;">Ce lien est valable 30 minutes. Si vous n'avez pas fait cette demande, ignorez cet email.</p>
+      <p style="color:#666;font-size:.85rem;">Ce lien est valable 30 minutes.</p>
       <hr style="border:none;border-top:1px solid #eee;margin:1.5rem 0;">
       <p style="color:#999;font-size:.8rem;">{cfg.get('from_name','Pétanque')}</p>
     </div>
     """
-
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Réinitialisation de mot de passe — Pétanque"
         msg["From"]    = f"{cfg['from_name']} <{cfg['from_email'] or cfg['smtp_user']}>"
         msg["To"]      = dest_email
         msg.attach(MIMEText(corps_html, "html", "utf-8"))
-
         with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"]) as server:
             server.starttls()
             server.login(cfg["smtp_user"], cfg["smtp_password"])
@@ -1152,49 +1095,40 @@ def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
 
 @app.route("/mot-de-passe-oublie", methods=["GET", "POST"])
 def mot_de_passe_oublie():
-    """Page de demande de reset."""
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
         users = charger_users()
-        user = users.get(username)
-
+        user  = users.get(username)
         if user and user.get("email"):
-            # Générer token valable 30 min
-            token = secrets.token_urlsafe(32)
-            expire = datetime.now().timestamp() + 1800  # 30 min
+            token  = secrets.token_urlsafe(32)
+            expire = datetime.now().timestamp() + 1800
             _reset_tokens[token] = {"username": username, "expire": expire}
-
             if envoyer_email_reset(user["email"], username, token):
                 flash(f"✅ Email envoyé à l'adresse enregistrée pour « {username} ».", "success")
             else:
-                flash("❌ Erreur d'envoi. Vérifiez la configuration SMTP dans smtp_config.json.", "error")
+                flash("❌ Erreur d'envoi. Vérifiez la configuration SMTP.", "error")
         else:
-            # Même message pour ne pas révéler si le compte existe
             flash("✅ Si ce compte existe et a une adresse email, un lien a été envoyé.", "info")
-
         return redirect(url_for("login"))
     return render_template("mdp_oublie.html")
 
 
 @app.route("/reset-mdp/<token>", methods=["GET", "POST"])
 def reset_mdp_token(token):
-    """Page de saisie du nouveau mot de passe via token."""
-    # Vérifier token
     token_data = _reset_tokens.get(token)
     if not token_data or datetime.now().timestamp() > token_data["expire"]:
         flash("❌ Lien expiré ou invalide. Faites une nouvelle demande.", "error")
         _reset_tokens.pop(token, None)
         return redirect(url_for("login"))
-
     if request.method == "POST":
-        nouveau  = request.form.get("nouveau", "").strip()
-        confirm  = request.form.get("confirmation", "").strip()
+        nouveau = request.form.get("nouveau", "").strip()
+        confirm = request.form.get("confirmation", "").strip()
         if len(nouveau) < 4:
             flash("❌ Minimum 4 caractères.", "error")
         elif nouveau != confirm:
             flash("❌ Les mots de passe ne correspondent pas.", "error")
         else:
-            users = charger_users()
+            users    = charger_users()
             username = token_data["username"]
             if username in users:
                 users[username]["mdp_hash"] = hasher_mdp(nouveau)
@@ -1202,14 +1136,12 @@ def reset_mdp_token(token):
                 _reset_tokens.pop(token, None)
                 flash("✅ Mot de passe modifié ! Vous pouvez vous connecter.", "success")
                 return redirect(url_for("login"))
-
     return render_template("reset_mdp.html", token=token)
 
 
 @app.route("/smtp-config", methods=["GET", "POST"])
 @admin_requis
 def smtp_config():
-    """Page de configuration SMTP (admin)."""
     cfg = charger_smtp_config()
     if request.method == "POST":
         cfg["smtp_host"]     = request.form.get("smtp_host", "smtp.gmail.com")
@@ -1218,7 +1150,7 @@ def smtp_config():
         cfg["smtp_password"] = request.form.get("smtp_password", "")
         cfg["from_email"]    = request.form.get("from_email", "")
         cfg["from_name"]     = request.form.get("from_name", "Pétanque")
-        SMTP_CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        kv_set("smtp_config", cfg)
         flash("✅ Configuration SMTP sauvegardée.", "success")
         return redirect(url_for("comptes"))
     return render_template("smtp_config.html", concours=concours, cfg=cfg)
@@ -1227,8 +1159,7 @@ def smtp_config():
 @app.route("/ajouter_email_compte", methods=["POST"])
 @admin_requis
 def ajouter_email_compte():
-    """Ajoute/met à jour l'email d'un compte."""
-    users = charger_users()
+    users    = charger_users()
     username = request.form.get("username", "")
     email    = request.form.get("email", "").strip()
     if username in users:
