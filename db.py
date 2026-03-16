@@ -127,7 +127,12 @@ def archive_list() -> list:
         """)
         keys = ["filename", "nom", "date_concours", "lieu",
                 "nb_equipes", "statut", "date_creation"]
-        return [dict(zip(keys, row)) for row in rows]
+        result = []
+        for row in rows:
+            d = dict(zip(keys, row))
+            d["fichier"] = d["filename"]  # alias pour compatibilité template
+            result.append(d)
+        return result
     finally:
         conn.close()
 
