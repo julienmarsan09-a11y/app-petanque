@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<!-- saved from url=(0074)file:///C:/Users/marsa/Dropbox/PC/Downloads/public_resultats_TEMPLATE.html -->
+<html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Résultats &amp; Concours — Pétanque Salles sur l'Hers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link href="./public_resultats_files/css2" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0e0e10;
+    --bg-card: #18181c;
+    --bg-card2: #1f1f25;
+    --accent: #e8a020;
+    --accent2: #f5c842;
+    --text-primary: #f0ede6;
+    --text-muted: #888882;
+    --text-dim: #555550;
+    --border: rgba(255,255,255,0.07);
+    --border-accent: rgba(232,160,32,0.3);
+    --green: #3db87a;
+    --blue: #4a9edd;
+    --red: #e05050;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Barlow', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    background: rgba(14,14,16,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .header-logo { display: flex; align-items: center; gap: 12px; }
+  .logo-boule {
+    width: 36px; height: 36px;
+    background: radial-gradient(circle at 35% 35%, #d4a020, #8a6010, #3a2a08);
+    border-radius: 50%; flex-shrink: 0;
+    box-shadow: inset -4px -4px 8px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,200,80,0.3);
+  }
+  .header-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; line-height: 1.2; }
+  .header-subtitle { font-size: 11px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .header-badge { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--text-muted); font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.05em; }
+  .header-login { background: var(--accent); color: #1a0e00; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; text-decoration: none; }
+
+  .hero { padding: 3rem 2rem 2rem; max-width: 1100px; margin: 0 auto; }
+  .hero-tag { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--border-accent); padding: 3px 10px; border-radius: 20px; margin-bottom: 1rem; }
+  .hero h1 { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 900; letter-spacing: -0.01em; line-height: 1.05; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--text-muted); font-size: 15px; max-width: 500px; }
+
+  .tabs-container { max-width: 1100px; margin: 0 auto; padding: 0 2rem 3rem; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
+  .tab { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 20px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.2s, border-color 0.2s; user-select: none; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .next-banner { background: linear-gradient(135deg, rgba(232,160,32,0.12) 0%, rgba(232,160,32,0.04) 100%); border: 1px solid var(--border-accent); border-radius: 12px; padding: 1.5rem 2rem; display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap; }
+  .next-banner-date { text-align: center; flex-shrink: 0; }
+  .next-banner-date .day { font-family: 'Barlow Condensed', sans-serif; font-size: 3.5rem; font-weight: 900; color: var(--accent); line-height: 1; }
+  .next-banner-date .month { font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  .next-banner-info h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+  .next-banner-info .meta { color: var(--text-muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+  .next-banner-info .meta span::before { content: '·'; margin-right: 4px; color: var(--text-dim); }
+  .next-banner-info .meta span:first-child::before { display: none; }
+  .countdown { display: flex; gap: 8px; margin-top: 10px; }
+  .countdown-unit { text-align: center; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; min-width: 48px; }
+  .countdown-unit .num { font-family: 'Barlow Condensed', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--accent); line-height: 1; }
+  .countdown-unit .lbl { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .no-next { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; text-align: center; color: var(--text-muted); margin-bottom: 2rem; }
+
+  .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .event-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; transition: border-color 0.2s, transform 0.15s; cursor: pointer; }
+  .event-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); }
+  .event-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .event-date-pill { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; background: var(--bg-card2); color: var(--text-muted); border: 1px solid var(--border); }
+  .status-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; }
+  .status-termine { background: rgba(61,184,122,0.12); color: var(--green); border: 1px solid rgba(61,184,122,0.2); }
+  .status-a-venir { background: rgba(232,160,32,0.12); color: var(--accent); border: 1px solid rgba(232,160,32,0.2); }
+  .status-en-cours { background: rgba(74,158,221,0.12); color: var(--blue); border: 1px solid rgba(74,158,221,0.2); }
+  .event-card h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; line-height: 1.2; }
+  .event-card .event-meta { color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; gap: 3px; margin-bottom: 14px; }
+  .event-card .event-meta .row { display: flex; align-items: center; gap: 6px; }
+  .icon { width: 14px; height: 14px; color: var(--text-dim); flex-shrink: 0; }
+  .podium-mini { display: flex; gap: 6px; align-items: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .podium-place { flex: 1; text-align: center; }
+  .podium-medal { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 4px; color: var(--text-dim); }
+  .podium-team { font-size: 11px; font-weight: 500; line-height: 1.3; background: var(--bg-card2); border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; min-height: 36px; }
+  .place-1 .podium-medal { color: #e8c840; }
+  .place-2 .podium-medal { color: #b0b8c8; }
+  .place-3 .podium-medal { color: #c87840; }
+  .place-1 .podium-team { border: 1px solid rgba(232,200,64,0.25); }
+  .place-2 .podium-team, .place-3 .podium-team { border: 1px solid var(--border); }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; }
+  .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; position: sticky; top: 0; background: var(--bg-card); border-radius: 16px 16px 0 0; }
+  .modal-header h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.5rem; font-weight: 700; }
+  .modal-close { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .modal-body { padding: 1.5rem; }
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--text-muted); }
+  .info-value { font-weight: 500; text-align: right; max-width: 60%; }
+  .classement-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 13px; }
+  .classement-table th { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .classement-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .classement-table tr:last-child td { border-bottom: none; }
+  .classement-table tr:nth-child(1) td { background: rgba(232,200,64,0.05); }
+  .rank-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem; color: var(--text-muted); width: 28px; display: inline-block; }
+  .rank-1 { color: #e8c840; } .rank-2 { color: #b0b8c8; } .rank-3 { color: #c87840; }
+
+  .search-bar { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .search-bar input { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); padding: 8px 14px; font-size: 14px; font-family: 'Barlow', sans-serif; flex: 1; min-width: 180px; outline: none; transition: border-color 0.2s; }
+  .search-bar input:focus { border-color: rgba(232,160,32,0.5); }
+  .search-bar input::placeholder { color: var(--text-dim); }
+  .filter-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); padding: 8px 14px; font-size: 13px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+  .filter-btn.active, .filter-btn:hover { border-color: var(--border-accent); color: var(--accent); }
+  .section-title { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; margin-top: 24px; }
+  .section-title:first-child { margin-top: 0; }
+
+  .calendar-list { display: flex; flex-direction: column; gap: 10px; }
+  .cal-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1.5rem; cursor: pointer; transition: border-color 0.2s; }
+  .cal-item:hover { border-color: rgba(255,255,255,0.15); }
+  .cal-item.past { opacity: 0.55; }
+  .cal-date-block { text-align: center; min-width: 52px; flex-shrink: 0; }
+  .cal-date-block .d { font-family: 'Barlow Condensed', sans-serif; font-size: 2rem; font-weight: 900; line-height: 1; color: var(--accent); }
+  .cal-item.past .cal-date-block .d { color: var(--text-muted); }
+  .cal-date-block .m { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .cal-info h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; }
+  .cal-info p { font-size: 13px; color: var(--text-muted); }
+  .cal-status { margin-left: auto; flex-shrink: 0; }
+
+  @media (max-width: 640px) {
+    header { padding: 0 1rem; }
+    .hero, .tabs-container { padding-left: 1rem; padding-right: 1rem; }
+    .hero h1 { font-size: 2.2rem; }
+    .next-banner { flex-direction: column; gap: 1rem; }
+    .events-grid { grid-template-columns: 1fr; }
+    .tabs { overflow-x: auto; }
+    .tab { white-space: nowrap; }
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo">
+    {% if logo_exists %}<img src="file:///C:/logo.png" style="height:36px;width:36px;border-radius:50%;object-fit:cover" alt="Logo">
+    {% else %}<div class="logo-boule"></div>{% endif %}
+    <div>
+      <div class="header-title">Pétanque Salles sur l'Hers</div>
+      <div class="header-subtitle">Résultats &amp; Calendrier</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-badge">Saison 2025–2026</div>
+    <a href="file:///C:/login" class="header-login">Espace admin</a>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-tag">Espace joueurs</div>
+  <h1>Résultats &amp; <span>Concours</span></h1>
+  <p>Retrouvez tous les résultats des concours passés et les prochaines dates à ne pas manquer.</p>
+</div>
+
+<div class="tabs-container">
+  <div class="tabs">
+    <div class="tab active" data-tab="avenir">À venir</div>
+    <div class="tab" data-tab="resultats">Résultats</div>
+    <div class="tab" data-tab="calendrier">Calendrier complet</div>
+  </div>
+
+  <!-- TAB : À VENIR -->
+  <div class="tab-content active" id="tab-avenir">
+    {% set next = namespace(found=none) %}
+    {% for c in concours_list %}
+      {% if c.status == 'a-venir' and next.found is none %}{% set next.found = c %}{% endif %}
+    {% endfor %}
+
+    {% if next.found %}
+    {% set nd = next.found.date.split('-') %}
+    <div class="next-banner">
+      <div class="next-banner-date">
+        <div class="day">{{ nd[2] }}</div>
+        <div class="month" id="next-month-name" data-month="{{ nd[1] }}">{{ nd[1] }}</div>
+      </div>
+      <div class="next-banner-info">
+        <h2>{{ next.found.nom }}</h2>
+        <div class="meta">
+          <span>{{ next.found.heure }}</span>
+          <span>{{ next.found.lieu }}</span>
+          {% if next.found.contact %}<span>{{ next.found.contact }}</span>{% endif %}
+        </div>
+        <div class="countdown" id="countdown" data-date="{{ next.found.date }}T{{ next.found.heure[:2] }}:00:00">
+          <div class="countdown-unit"><div class="num" id="c-j">--</div><div class="lbl">jours</div></div>
+          <div class="countdown-unit"><div class="num" id="c-h">--</div><div class="lbl">heures</div></div>
+          <div class="countdown-unit"><div class="num" id="c-m">--</div><div class="lbl">min</div></div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="no-next">Aucun concours à venir pour le moment. Revenez bientôt !</div>
+    {% endif %}
+
+    <p class="section-title">Prochains concours</p>
+    <div class="events-grid">
+      {% for c in concours_list if c.status == 'a-venir' %}
+        {{ render_card(c) }}
+      {% else %}
+        <p style="color:var(--text-muted);font-size:14px">Aucun concours à venir pour le moment.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- TAB : RÉSULTATS -->
+  <div class="tab-content" id="tab-resultats">
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Rechercher une équipe ou un concours…">
+      <button class="filter-btn active" data-year="all">Tous</button>
+      {% set years = [] %}
+      {% for c in concours_list if c.status == 'termine' and c.date %}
+        {% set y = c.date[:4] %}
+        {% if y not in years %}{% set _ = years.append(y) %}{% endif %}
+      {% endfor %}
+      {% for y in years | sort(reverse=True) %}
+        <button class="filter-btn" data-year="{{ y }}">{{ y }}</button>
+      {% endfor %}
+    </div>
+    <div class="events-grid" id="grid-resultats">
+      {% for c in concours_list | sort(attribute='date', reverse=True) if c.status in ('termine', 'en-cours') %}
+        {{ render_card(c) }}
+      {% else %}
+        <p style="color:var(--text-muted);font-size:14px">Aucun résultat disponible.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- TAB : CALENDRIER -->
+  <div class="tab-content" id="tab-calendrier">
+    <div class="calendar-list">
+      {% for c in concours_list | sort(attribute='date') %}
+      {% if c.date %}
+      {% set nd = c.date.split('-') %}
+      <div class="cal-item {% if c.status == &#39;termine&#39; %}past{% endif %}" onclick="openModal(&#39;{{ c.id }}&#39;)">
+        <div class="cal-date-block">
+          <div class="d">{{ nd[2] }}</div>
+          <div class="m" data-month="{{ nd[1] }}">{{ nd[1] }}</div>
+        </div>
+        <div class="cal-info">
+          <h3>{{ c.nom }}</h3>
+          <p>{{ c.heure }}{% if c.lieu %} · {{ c.lieu }}{% endif %}</p>
+        </div>
+        <div class="cal-status">
+          <span class="status-badge status-{{ c.status }}">
+            {% if c.status == 'termine' %}Terminé{% elif c.status == 'en-cours' %}En cours{% else %}À venir{% endif %}
+          </span>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div id="modal-status-badge" class="status-badge"></div>
+        <h2 id="modal-title" style="margin-top:6px">–</h2>
+      </div>
+      <button class="modal-close" id="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-infos"></div>
+      <div id="modal-classement-section" style="margin-top:1.5rem;display:none">
+        <p class="section-title">Classement final</p>
+        <table class="classement-table">
+          <thead><tr><th>#</th><th>Équipe</th><th>Club</th><th>V</th><th>Pts</th></tr></thead>
+          <tbody id="modal-classement-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Données JSON injectées par Flask/Jinja2 -->
+<script>
+const DATA = {{ concours_list | tojson }};
+const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+const MOIS_LONG = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+
+// Corriger les noms de mois (remplace les numéros par les noms)
+document.querySelectorAll('[data-month]').forEach(el => {
+  const m = parseInt(el.dataset.month, 10);
+  el.textContent = MOIS[m - 1] || el.textContent;
+});
+
+// Countdown
+const cdEl = document.getElementById('countdown');
+if (cdEl) {
+  function updateCD() {
+    const target = new Date(cdEl.dataset.date);
+    const diff = target - new Date();
+    if (diff < 0) { cdEl.style.display = 'none'; return; }
+    document.getElementById('c-j').textContent = Math.floor(diff / 86400000);
+    document.getElementById('c-h').textContent = Math.floor((diff % 86400000) / 3600000);
+    document.getElementById('c-m').textContent = Math.floor((diff % 3600000) / 60000);
+  }
+  updateCD(); setInterval(updateCD, 30000);
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+  });
+});
+
+// Filtres résultats
+let activeYear = 'all';
+document.querySelectorAll('.filter-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    activeYear = b.dataset.year;
+    filterResultats();
+  });
+});
+
+document.getElementById('search-input').addEventListener('input', filterResultats);
+
+function filterResultats() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('#grid-resultats .event-card').forEach(card => {
+    const nom = (card.dataset.nom || '').toLowerCase();
+    const year = card.dataset.year || '';
+    const equipes = (card.dataset.equipes || '').toLowerCase();
+    const matchYear = activeYear === 'all' || year === activeYear;
+    const matchSearch = !q || nom.includes(q) || equipes.includes(q);
+    card.style.display = (matchYear && matchSearch) ? '' : 'none';
+  });
+}
+
+// Modal
+function openModal(id) {
+  const c = DATA.find(x => String(x.id) === String(id));
+  if (!c) return;
+  const statusMap = { 'termine': ['Terminé','status-termine'], 'en-cours': ['En cours','status-en-cours'], 'a-venir': ['À venir','status-a-venir'] };
+  const [label, cls] = statusMap[c.status] || ['–',''];
+  document.getElementById('modal-status-badge').textContent = label;
+  document.getElementById('modal-status-badge').className = 'status-badge ' + cls;
+  document.getElementById('modal-title').textContent = c.nom;
+
+  const rows = [];
+  if (c.description) rows.push(['Infos', c.description]);
+  if (c.date) {
+    const d = new Date(c.date + 'T12:00:00');
+    rows.push(['Date', `${String(d.getDate()).padStart(2,'0')} ${MOIS[d.getMonth()]} ${d.getFullYear()}`]);
+  }
+  if (c.heure) rows.push(['Heure', c.heure]);
+  if (c.lieu) rows.push(['Lieu', c.lieu]);
+  rows.push(['Équipes', c.equipes ? `${c.equipes} équipes inscrites` : 'Inscriptions en cours']);
+  rows.push(['Format', `${c.tours} tours · Score poules : ${c.score_poules} pts`]);
+  if (c.lots) rows.push(['Lots', c.lots]);
+  if (c.contact) rows.push(['Contact', c.contact]);
+
+  document.getElementById('modal-infos').innerHTML = rows.map(([l,v]) =>
+    `<div class="info-row"><span class="info-label">${l}</span><span class="info-value">${v}</span></div>`
+  ).join('');
+
+  const section = document.getElementById('modal-classement-section');
+  if (c.classement && c.classement.length > 0) {
+    section.style.display = 'block';
+    document.getElementById('modal-classement-body').innerHTML = c.classement.map(e => {
+      const rc = e.place <= 3 ? `rank-${e.place}` : '';
+      return `<tr><td><span class="rank-num ${rc}">${e.place}</span></td><td style="font-weight:500">${e.equipe}</td><td style="color:var(--text-muted)">${e.club}</td><td>${e.victoires}</td><td style="font-weight:500">${e.points}</td></tr>`;
+    }).join('');
+  } else {
+    section.style.display = 'none';
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Rendre les cartes cliquables + ajouter data-attributes pour le filtrage JS
+document.querySelectorAll('#grid-resultats .event-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const id = card.dataset.id;
+    if (id) openModal(id);
+  });
+});
+</script>
+
+{# Macro Jinja2 pour rendre une carte — appellée plus haut dans les boucles #}
+{% macro render_card(c) %}
+{% set nd = c.date.split('-') if c.date else ['','',''] %}
+{% set status_label = 'Terminé' if c.status == 'termine' else ('En cours' if c.status == 'en-cours' else 'À venir') %}
+{% set equipes_text = (c.equipes | string + ' équipes') if c.equipes else 'Inscriptions ouvertes' %}
+<div class="event-card" data-id="{{ c.id }}" data-nom="{{ c.nom }}" data-year="{{ nd[0] }}" data-equipes="{% for e in c.classement %}{{ e.equipe }} {% endfor %}" onclick="openModal(&#39;{{ c.id }}&#39;)">
+  <div class="event-card-header">
+    <span class="event-date-pill">{{ nd[2] }} <span data-month="{{ nd[1] }}">{{ nd[1] }}</span> {{ nd[0] }}</span>
+    <span class="status-badge status-{{ c.status }}">{{ status_label }}</span>
+  </div>
+  <h3>{{ c.nom }}</h3>
+  <div class="event-meta">
+    <div class="row">
+      <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="7" r="3"></circle><path d="M8 1C4.686 1 2 3.686 2 7c0 4.25 6 8 6 8s6-3.75 6-8c0-3.314-2.686-6-6-6z"></path></svg>
+      {{ c.lieu or '–' }}
+    </div>
+    <div class="row">
+      <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M8 5v3l2 2"></path></svg>
+      {{ c.heure or '–' }} · {{ equipes_text }}
+    </div>
+  </div>
+  {% if c.classement %}
+  <div class="podium-mini">
+    {% for place in [1,2,3] %}
+    {% set e = c.classement | selectattr('place', 'equalto', place) | first | default(none) %}
+    <div class="podium-place place-{{ place }}">
+      <span class="podium-medal">{{ ['1er','2e','3e'][place-1] }}</span>
+      <span class="podium-team">{{ e.equipe if e else '–' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+
+</body></html>
