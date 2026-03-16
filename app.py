@@ -30,6 +30,9 @@ def has_logo():
 # ✅ Enregistré ICI, au niveau module, avant toute route
 app.jinja_env.globals['has_logo'] = has_logo
 
+@app.context_processor
+def inject_now():
+    return {'now': datetime.now()}
 
 # ═══════════════════════════════════════════════════════════
 # AUTH
@@ -940,6 +943,129 @@ def api_stats():
         "nb_matchs_joues": sum(1 for m in concours.matchs if m.termine),
         "statut": concours.statut,
     })
+
+# ═══════════════════════════════════════════════════════════
+# ROUTE PUBLIQUE — Résultats & Calendrier (sans login)
+# COLLER JUSTE AVANT : if __name__ == "__main__":
+# ═══════════════════════════════════════════════════════════
+
+@app.route("/resultats")
+def resultats_publics():
+    """Page publique visible par tous (joueurs, familles) — aucun login requis."""
+    concours_list = []
+
+    # ── 1. Concours en cours (concours_data.json) ─────────────────────────────
+    if DATA_FILE.exists():
+        try:
+            data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+            equipes = data.get("equipes", [])
+
+            # Statut Flask → statut page publique
+            statut_raw = data.get("statut", "inscription")
+            if statut_raw == "termine":
+                js_status = "termine"
+            elif statut_raw in ("en_cours", "finale"):
+                js_status = "en-cours"
+            else:
+                js_status = "a-venir"
+
+            concours_list.append({
+                "id"          : "encours",
+                "nom"         : data.get("nom", "Concours en cours"),
+                "date"        : data.get("date_concours", ""),
+                "heure"       : data.get("heure_debut", ""),
+                "lieu"        : data.get("lieu", ""),
+                "description" : data.get("description", ""),
+                "lots"        : _format_lots(data.get("lots", [])),
+                "tours"       : data.get("nb_tours", 5),
+                "score_poules": data.get("score_poules", 7),
+                "equipes"     : len(equipes) if equipes else None,
+                "contact"     : data.get("contact", ""),
+                "status"      : js_status,
+                "classement"  : _build_classement_from_raw(equipes),
+            })
+        except Exception as ex:
+            print(f"[resultats_publics] Erreur lecture concours en cours : {ex}")
+
+    # ── 2. Archives (dossier archives/) ───────────────────────────────────────
+    for f in sorted(ARCHIVE_DIR.glob("*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            equipes = data.get("equipes", [])
+            concours_list.append({
+                "id"          : f.stem,          # nom du fichier sans .json
+                "nom"         : data.get("nom", f.stem),
+                "date"        : data.get("date_concours", ""),
+                "heure"       : data.get("heure_debut", ""),
+                "lieu"        : data.get("lieu", ""),
+                "description" : data.get("description", ""),
+                "lots"        : _format_lots(data.get("lots", [])),
+                "tours"       : data.get("nb_tours", 5),
+                "score_poules": data.get("score_poules", 7),
+                "equipes"     : len(equipes) if equipes else None,
+                "contact"     : data.get("contact", ""),
+                "status"      : "termine",
+                "classement"  : _build_classement_from_raw(equipes),
+            })
+        except Exception as ex:
+            print(f"[resultats_publics] Erreur lecture archive {f.name} : {ex}")
+
+    return render_template(
+        "public_resultats.html",
+        concours_list=concours_list,
+        logo_exists=has_logo(),
+    )
+
+
+def _build_classement_from_raw(equipes: list, top: int = 8) -> list:
+    """
+    Construit le classement depuis la liste brute des équipes (dicts JSON).
+    Tri identique à la fonction classement() :
+    points → buchholz → diff paniers → paniers marqués
+    """
+    if not equipes:
+        return []
+
+    # Exclure les équipes forfait
+    actives = [e for e in equipes if not e.get("forfait", False)]
+
+    tries = sorted(
+        actives,
+        key=lambda e: (
+            -e.get("points", 0),
+            -e.get("buchholz", 0),
+            -(e.get("paniers_marques", 0) - e.get("paniers_encaisses", 0)),
+            -e.get("paniers_marques", 0),
+        )
+    )
+
+    result = []
+    for i, e in enumerate(tries[:top]):
+        pts = e.get("points", 0)
+        # Affichage : "3" au lieu de "3.0", "2.5" si égalité
+        pts_str = str(int(pts)) if pts == int(pts) else str(pts)
+        result.append({
+            "place"    : i + 1,
+            "equipe"   : e.get("nom", "?"),
+            "club"     : e.get("club", ""),
+            "victoires": int(e.get("points", 0)),   # points entiers = victoires
+            "points"   : pts_str,
+        })
+    return result
+
+
+def _format_lots(lots: list) -> str:
+    """Transforme la liste de lots en chaîne lisible : '1er: 150€ · 2e: 80€'"""
+    if not lots:
+        return ""
+    parties = []
+    for lot in sorted(lots, key=lambda l: l.get("place", 99) if isinstance(l, dict) else 99):
+        if isinstance(lot, dict):
+            place = lot.get("place", "?")
+            desc  = lot.get("description", "")
+            medaille = {1: "1er", 2: "2e", 3: "3e"}.get(place, f"{place}e")
+            parties.append(f"{medaille} : {desc}")
+    return " · ".join(parties)
 
 
 if __name__ == "__main__":
