@@ -933,9 +933,16 @@ def resultats_publics():
         try:
             equipes    = data.get("equipes", [])
             statut_raw = data.get("statut", "inscription")
+            # Si le concours est terminé, il est déjà dans les archives — on l'ignore ici
             if statut_raw == "termine":
-                js_status = "termine"
-            elif statut_raw in ("en_cours", "finale"):
+                data = None
+        except Exception:
+            data = None
+    if data:
+        try:
+            equipes    = data.get("equipes", [])
+            statut_raw = data.get("statut", "inscription")
+            if statut_raw in ("en_cours", "finale"):
                 js_status = "en-cours"
             else:
                 js_status = "a-venir"
