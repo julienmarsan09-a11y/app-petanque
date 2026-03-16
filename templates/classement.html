@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex justify-between items-center" style="margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1 class="page-title">🏆 <span>Classement</span></h1>
+    <p class="page-subtitle">{{ concours.nom }} — {% if concours.statut=='termine' %}Résultat final{% else %}Après le tour {{ concours.tour_actuel }}{% endif %}</p>
+  </div>
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+    {% if concours.statut=='en_cours' %}<a href="{{ url_for('matchs_tour', tour=concours.tour_actuel) }}" class="btn btn-primary">⚡ Tour {{ concours.tour_actuel }}</a>{% endif %}
+    {% if concours.statut=='finale' %}<a href="{{ url_for('phase_finale') }}" class="btn btn-primary" style="background:var(--accent2);">🏆 Finale</a>{% endif %}
+    <a href="{{ url_for('imprimer') }}" class="btn btn-ghost" target="_blank">🖨 PDF</a>
+  </div>
+</div>
+
+<!-- Lots -->
+{% if lots %}
+<div class="card mb-2">
+  <div class="card-header"><div class="icon">🎁</div><h2>Lots</h2></div>
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:.75rem;">
+    {% for place, desc in lots.items() %}
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.65rem 1rem;display:flex;align-items:center;gap:.6rem;">
+      <span>{{ '🥇' if place==1 else ('🥈' if place==2 else ('🥉' if place==3 else '🎖️')) }}</span>
+      <span style="font-weight:600;font-size:.88rem;">{{ desc }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Podium -->
+{% if concours.statut=='termine' and equipes|length >= 3 %}
+<div class="card mb-2">
+  <div class="card-header" style="border-bottom-color:rgba(245,166,35,0.2);">
+    <div class="icon" style="background:rgba(245,166,35,0.15);">👑</div>
+    <h2 style="color:var(--accent);">Podium</h2>
+  </div>
+  <div class="card-body">
+    <div class="podium">
+      <div class="podium-place podium-2">
+        <div class="podium-nom">{{ equipes[1].nom }}</div>
+        <div class="podium-pts">{{ equipes[1].points }} pts{% if 2 in lots %} · 🎁 {{ lots[2] }}{% endif %}</div>
+        <div class="podium-bloc">2</div>
+      </div>
+      <div class="podium-place podium-1">
+        <div style="font-size:1.8rem;">👑</div>
+        <div class="podium-nom" style="font-size:1.05rem;font-weight:900;">{{ equipes[0].nom }}</div>
+        <div class="podium-pts">{{ equipes[0].points }} pts{% if 1 in lots %} · 🎁 {{ lots[1] }}{% endif %}</div>
+        <div class="podium-bloc">1</div>
+      </div>
+      <div class="podium-place podium-3">
+        <div class="podium-nom">{{ equipes[2].nom }}</div>
+        <div class="podium-pts">{{ equipes[2].points }} pts{% if 3 in lots %} · 🎁 {{ lots[3] }}{% endif %}</div>
+        <div class="podium-bloc">3</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tableau -->
+<div class="card">
+  <div class="card-header"><div class="icon">📊</div><h2>Classement complet</h2></div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th style="width:50px;">Pos.</th>
+        <th>Équipe</th>
+        <th style="text-align:center;">Points</th>
+        <th style="text-align:center;">Buchholz</th>
+        <th style="text-align:center;">+</th>
+        <th style="text-align:center;">−</th>
+        <th style="text-align:center;">Diff.</th>
+        <th>Lot</th>
+      </tr></thead>
+      <tbody>
+      {% for equipe in equipes %}
+      <tr style="{% if loop.index<=3 %}background:rgba(245,166,35,0.03);{% endif %}">
+        <td style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;">
+          {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}<span style="color:var(--text3);">{{ loop.index }}</span>{% endif %}
+        </td>
+        <td>
+          <div style="font-weight:600;color:var(--text);">{{ equipe.nom }}</div>
+          {% if equipe.joueurs %}<div class="text-small">{{ equipe.joueurs|join(', ') }}</div>{% endif %}
+          {% if equipe.club %}<span class="pill pill-blue" style="margin-top:.2rem;">{{ equipe.club }}</span>{% endif %}
+        </td>
+        <td style="text-align:center;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--accent);">
+            {{ equipe.points|int if equipe.points==equipe.points|int else equipe.points }}
+          </span>
+        </td>
+        <td style="text-align:center;color:var(--text3);">{{ equipe.buchholz }}</td>
+        <td style="text-align:center;color:var(--green);">+{{ equipe.paniers_marques }}</td>
+        <td style="text-align:center;color:var(--red);">-{{ equipe.paniers_encaisses }}</td>
+        <td style="text-align:center;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;
+          color:{% if equipe.difference_paniers>0 %}var(--green){% elif equipe.difference_paniers<0 %}var(--red){% else %}var(--text3){% endif %};">
+          {% if equipe.difference_paniers>0 %}+{% endif %}{{ equipe.difference_paniers }}
+        </td>
+        <td style="font-size:.8rem;color:var(--accent);">{% if loop.index in lots %}🎁 {{ lots[loop.index] }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt-2"><div class="card-body" style="padding:.9rem 1.25rem;">
+  <div style="display:flex;gap:2rem;flex-wrap:wrap;font-size:.8rem;color:var(--text3);">
+    <span>V = 1 pt · Égalité = 0.5 pt · D = 0 pt</span>
+    <span>Buchholz = somme des pts des adversaires rencontrés</span>
+  </div>
+</div></div>
+
+{% if concours.statut=='termine' and session.role=='admin' %}
+<div style="text-align:center;margin-top:2rem;">
+  <form action="{{ url_for('reset') }}" method="post" onsubmit="return confirm('Nouveau concours ? Le concours actuel sera archivé.')">
+    <button type="submit" class="btn btn-ghost" style="font-size:.85rem;">🔄 Nouveau concours</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

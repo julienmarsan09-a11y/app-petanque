@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if avertissement %}
+<div class="flash warning" style="margin-bottom: 1.5rem;">
+    ⚠️ {{ avertissement }}
+</div>
+{% endif %}
+
+<div class="flex justify-between items-center mb-2" style="flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h1 class="page-title">📋 Inscriptions</h1>
+        <p class="page-subtitle">{{ concours.equipes|length }} équipe(s) inscrite(s) · {{ concours.type_equipe|title }}s</p>
+    </div>
+    {% if concours.equipes|length >= 2 %}
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="{{ url_for('demarrer') }}" class="btn btn-success" style="font-size: 1rem; padding: 0.75rem 1.75rem;"
+           onclick="return confirm('Démarrer le concours avec {{ concours.equipes|length }} équipes ?')">
+            ▶️ Démarrer le concours
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid-2">
+    <!-- Formulaire d'ajout -->
+    <div class="card">
+        <div class="card-header">
+            <span>➕</span>
+            <h2>Ajouter une équipe</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ajouter_equipe') }}">
+                <div class="form-group">
+                    <label>Nom de l'équipe *</label>
+                    <input type="text" name="nom" placeholder="Ex: Les Boules d'Or" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Joueurs ({{ 2 if concours.type_equipe == 'doublette' else 3 }} noms séparés par virgule)</label>
+                    <input type="text" name="joueurs"
+                        placeholder="{% if concours.type_equipe == 'doublette' %}Jean Dupont, Marie Martin{% else %}Jean, Marie, Pierre{% endif %}">
+                    <small class="text-muted">Optionnel, pour affichage seulement.</small>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.75rem;">
+                    ➕ Inscrire l'équipe
+                </button>
+            </form>
+
+            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--sable-fonce);">
+                <p class="text-muted" style="font-size: 0.85rem;">
+                    💡 <strong>Astuce :</strong> Pour le système suisse, un nombre pair d'équipes est idéal.
+                    Avec un nombre impair, une équipe sera exemptée à chaque tour.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des équipes -->
+    <div class="card">
+        <div class="card-header">
+            <span>👥</span>
+            <h2>Équipes inscrites ({{ concours.equipes|length }})</h2>
+        </div>
+        {% if concours.equipes %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Équipe</th>
+                        <th>Joueurs</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for equipe in concours.equipes %}
+                    <tr>
+                        <td style="color: var(--texte-doux);">{{ loop.index }}</td>
+                        <td style="font-weight: 600;">{{ equipe.nom }}</td>
+                        <td class="text-muted">
+                            {% if equipe.joueurs %}
+                                {{ equipe.joueurs | join(', ') }}
+                            {% else %}
+                                <em>—</em>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('supprimer_equipe', equipe_id=equipe.id) }}"
+                                  onsubmit="return confirm('Supprimer {{ equipe.nom }} ?')">
+                                <button type="submit" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">✕</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-center" style="padding: 2.5rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎳</div>
+            <p style="color: var(--texte-doux);">Aucune équipe inscrite.<br>Ajoutez la première équipe !</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if concours.equipes|length >= 2 %}
+<div class="card mt-3" style="border: 2px solid var(--herbe);">
+    <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="font-weight: 700; font-size: 1.05rem;">✅ Prêt à démarrer !</div>
+            <div class="text-muted">{{ concours.equipes|length }} équipes · {{ concours.nb_tours }} tours · Score à {{ concours.score_victoire }}</div>
+        </div>
+        <a href="{{ url_for('demarrer') }}" class="btn btn-success" style="font-size: 1rem; padding: 0.75rem 2rem;"
+           onclick="return confirm('Démarrer le concours avec {{ concours.equipes|length }} équipes ? Les inscriptions seront fermées.')">
+            ▶️ Démarrer le concours
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
