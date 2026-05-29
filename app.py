@@ -260,7 +260,18 @@ def charger_archive(fichier):
     return archive_get(fichier)
 
 
-concours = charger_concours()
+# ✅ NE PAS charger au niveau module — c'est dangereux sur Render
+concours = None
+
+@app.before_request
+def _init_concours():
+    global concours
+    if concours is None:
+        try:
+            concours = charger_concours()
+        except Exception as e:
+            print(f"⚠️ Erreur chargement concours: {e}")
+            concours = Concours()  # Fallback vide
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1032,7 +1043,11 @@ def _format_lots(lots: list) -> str:
             parties.append(f"{medaille} : {desc}")
     return " · ".join(parties)
 
-
+@app.route("/health", methods=["GET"])
+def health():
+    """Healthcheck pour Render"""
+    return {"status": "ok", "app": "petanque"}, 200
+  
 if __name__ == "__main__":
     charger_users()
     print("\n🎯 Pétanque - Salles sur l'Hers v5")
