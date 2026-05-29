@@ -1,5 +1,5 @@
 """
-🎯 Pétanque - Salles sur l'Hers — v5
+🎯 Pétanque - Salles sur l'Hers — v5 [FIXED FOR RENDER]
 """
 
 from flask import (Flask, render_template, request, redirect, url_for,
@@ -19,20 +19,24 @@ from db import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "petanque_salles_hers_2024")
 
-# Initialise les tables PostgreSQL en arrière-plan (ne bloque pas gunicorn)
+# ✅ INIT BD EN ARRIÈRE-PLAN (ne bloque pas gunicorn)
 import threading
 def _init_db_bg():
     try:
         init_db()
+        print("✅ Base de données initialisée")
     except Exception as e:
-        print(f'⚠️  init_db error: {e}')
+        print(f'⚠️ init_db error: {e}')
 threading.Thread(target=_init_db_bg, daemon=True).start()
 
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
 
 def has_logo():
     """Vérifie si un logo est présent en base."""
-    return kv_get("logo_data") is not None
+    try:
+        return kv_get("logo_data") is not None
+    except Exception:
+        return False
 
 app.jinja_env.globals['has_logo'] = has_logo
 
@@ -49,16 +53,28 @@ def hasher_mdp(mdp):
     return hashlib.sha256(mdp.encode()).hexdigest()
 
 def charger_users():
-    data = kv_get("users")
-    if data:
-        return data
+    """Charge les utilisateurs depuis PostgreSQL."""
+    try:
+        data = kv_get("users")
+        if data:
+            return data
+    except Exception as e:
+        print(f"⚠️ Erreur charger_users: {e}")
+    
+    # Fallback : créer compte admin par défaut
     users = {"admin": {"mdp_hash": hasher_mdp("petanque"), "role": "admin", "nom": "Administrateur"}}
-    kv_set("users", users)
-    print("✅ Compte créé  →  admin / petanque")
+    try:
+        kv_set("users", users)
+        print("✅ Compte créé → admin / petanque")
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarde users: {e}")
     return users
 
 def sauvegarder_users(users):
-    kv_set("users", users)
+    try:
+        kv_set("users", users)
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarder_users: {e}")
 
 def login_requis(f):
     @wraps(f)
@@ -74,9 +90,14 @@ def admin_requis(f):
     def decorated(*args, **kwargs):
         if "utilisateur" not in session:
             return redirect(url_for("login"))
-        users = charger_users()
-        if users.get(session["utilisateur"], {}).get("role") != "admin":
-            flash("🚫 Accès réservé aux administrateurs.", "error")
+        try:
+            users = charger_users()
+            if users.get(session["utilisateur"], {}).get("role") != "admin":
+                flash("🚫 Accès réservé aux administrateurs.", "error")
+                return redirect(url_for("index"))
+        except Exception as e:
+            print(f"⚠️ Erreur admin_requis: {e}")
+            flash("⚠️ Erreur d'accès.", "error")
             return redirect(url_for("index"))
         return f(*args, **kwargs)
     return decorated
@@ -183,9 +204,10 @@ class Concours:
 # ═══════════════════════════════════════════════════════════
 
 def charger_concours():
-    data = kv_get("concours_data")
-    if data:
-        try:
+    """Charge le concours depuis PostgreSQL avec fallback."""
+    try:
+        data = kv_get("concours_data")
+        if data:
             c = Concours()
             for attr in ["nom","association","lieu","date_concours","heure_debut",
                          "contact","description","format","type_equipe",
@@ -216,48 +238,62 @@ def charger_concours():
                     forfait_equipe_id=m.get("forfait_equipe_id",0),
                 ))
             return c
-        except Exception as ex:
-            print(f"Erreur chargement: {ex}")
+    except Exception as ex:
+        print(f"⚠️ Erreur charger_concours: {ex}")
     return Concours()
 
 
 def sauvegarder_concours(c):
-    data = {a: getattr(c, a) for a in
-            ["nom","association","lieu","date_concours","heure_debut",
-             "contact","description","format","type_equipe",
-             "score_poules","score_finale","score_grande_finale",
-             "nb_tours","tour_actuel","statut","avec_finale",
-             "nb_qualifies","tirage_aleatoire","restriction_club",
-             "date_creation","_prochain_id_equipe","_prochain_id_match"]}
-    data["lots"]    = c.lots
-    data["equipes"] = [asdict(e) for e in c.equipes]
-    data["matchs"]  = [asdict(m) for m in c.matchs]
-    kv_set("concours_data", data)
+    try:
+        data = {a: getattr(c, a) for a in
+                ["nom","association","lieu","date_concours","heure_debut",
+                 "contact","description","format","type_equipe",
+                 "score_poules","score_finale","score_grande_finale",
+                 "nb_tours","tour_actuel","statut","avec_finale",
+                 "nb_qualifies","tirage_aleatoire","restriction_club",
+                 "date_creation","_prochain_id_equipe","_prochain_id_match"]}
+        data["lots"]    = c.lots
+        data["equipes"] = [asdict(e) for e in c.equipes]
+        data["matchs"]  = [asdict(m) for m in c.matchs]
+        kv_set("concours_data", data)
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarder_concours: {e}")
 
 
 def archiver_concours(c):
     if not c.nom:
         return
-    horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nom_fichier = f"{horodatage}_{c.nom[:40].replace(' ','_')}.json"
-    data = {a: getattr(c, a) for a in
-            ["nom","association","lieu","date_concours","heure_debut",
-             "contact","description","format","type_equipe",
-             "score_poules","score_finale","nb_tours","tour_actuel","statut",
-             "date_creation"]}
-    data["lots"]    = c.lots
-    data["equipes"] = [asdict(e) for e in c.equipes]
-    data["matchs"]  = [asdict(m) for m in c.matchs]
-    archive_save(nom_fichier, data)
-    return nom_fichier
+    try:
+        horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nom_fichier = f"{horodatage}_{c.nom[:40].replace(' ','_')}.json"
+        data = {a: getattr(c, a) for a in
+                ["nom","association","lieu","date_concours","heure_debut",
+                 "contact","description","format","type_equipe",
+                 "score_poules","score_finale","nb_tours","tour_actuel","statut",
+                 "date_creation"]}
+        data["lots"]    = c.lots
+        data["equipes"] = [asdict(e) for e in c.equipes]
+        data["matchs"]  = [asdict(m) for m in c.matchs]
+        archive_save(nom_fichier, data)
+        return nom_fichier
+    except Exception as e:
+        print(f"⚠️ Erreur archiver_concours: {e}")
 
 
 def charger_archives():
-    return archive_list()
+    try:
+        return archive_list()
+    except Exception as e:
+        print(f"⚠️ Erreur charger_archives: {e}")
+        return []
 
 
 def charger_archive(fichier):
-    return archive_get(fichier)
+    try:
+        return archive_get(fichier)
+    except Exception as e:
+        print(f"⚠️ Erreur charger_archive: {e}")
+        return None
 
 
 # ✅ NE PAS charger au niveau module — c'est dangereux sur Render
@@ -265,13 +301,14 @@ concours = None
 
 @app.before_request
 def _init_concours():
+    """Initialise concours à la première requête (pas au démarrage)."""
     global concours
     if concours is None:
         try:
             concours = charger_concours()
         except Exception as e:
-            print(f"⚠️ Erreur chargement concours: {e}")
-            concours = Concours()  # Fallback vide
+            print(f"⚠️ Erreur init_concours: {e}")
+            concours = Concours()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -536,11 +573,15 @@ tr:nth-child(even) td{{background:#f5f5f5}}.mt th,.mt td{{font-size:10px}}
 
 @app.route("/logo")
 def serve_logo():
-    data = kv_get("logo_data")
-    if not data:
+    try:
+        data = kv_get("logo_data")
+        if not data:
+            return "", 404
+        img_bytes = base64.b64decode(data["b64"])
+        return Response(img_bytes, mimetype=data["mimetype"])
+    except Exception as e:
+        print(f"⚠️ Erreur serve_logo: {e}")
         return "", 404
-    img_bytes = base64.b64decode(data["b64"])
-    return Response(img_bytes, mimetype=data["mimetype"])
 
 @app.route("/logo/upload", methods=["POST"])
 @admin_requis
@@ -556,17 +597,25 @@ def upload_logo():
     if ext not in ALLOWED_EXTENSIONS:
         flash(f"❌ Format non supporté ({', '.join(ALLOWED_EXTENSIONS)})", "error")
         return redirect(url_for("configurer"))
-    mimetype = f.content_type or "image/png"
-    b64 = base64.b64encode(f.read()).decode()
-    kv_set("logo_data", {"b64": b64, "mimetype": mimetype, "ext": ext})
-    flash("✅ Logo mis à jour !", "success")
+    try:
+        mimetype = f.content_type or "image/png"
+        b64 = base64.b64encode(f.read()).decode()
+        kv_set("logo_data", {"b64": b64, "mimetype": mimetype, "ext": ext})
+        flash("✅ Logo mis à jour !", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur upload_logo: {e}")
+        flash("❌ Erreur lors du téléchargement.", "error")
     return redirect(url_for("configurer"))
 
 @app.route("/logo/supprimer", methods=["POST"])
 @admin_requis
 def supprimer_logo():
-    kv_delete("logo_data")
-    flash("✅ Logo supprimé.", "success")
+    try:
+        kv_delete("logo_data")
+        flash("✅ Logo supprimé.", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur supprimer_logo: {e}")
+        flash("❌ Erreur lors de la suppression.", "error")
     return redirect(url_for("configurer"))
 
 
@@ -581,14 +630,17 @@ def login():
     if request.method == "POST":
         username = request.form.get("username","").strip().lower()
         mdp      = request.form.get("mdp","")
-        users    = charger_users()
-        user     = users.get(username)
-        if user and user["mdp_hash"] == hasher_mdp(mdp):
-            session["utilisateur"] = username
-            session["role"]        = user.get("role","saisie")
-            session["nom"]         = user.get("nom", username)
-            flash(f"👋 Bienvenue, {user.get('nom', username)} !", "success")
-            return redirect(request.form.get("next") or url_for("index"))
+        try:
+            users    = charger_users()
+            user     = users.get(username)
+            if user and user["mdp_hash"] == hasher_mdp(mdp):
+                session["utilisateur"] = username
+                session["role"]        = user.get("role","saisie")
+                session["nom"]         = user.get("nom", username)
+                flash(f"👋 Bienvenue, {user.get('nom', username)} !", "success")
+                return redirect(request.form.get("next") or url_for("index"))
+        except Exception as e:
+            print(f"⚠️ Erreur login: {e}")
         flash("❌ Identifiant ou mot de passe incorrect.", "error")
     return render_template("login.html", next=request.args.get("next",""))
 
@@ -598,66 +650,82 @@ def logout():
     flash("👋 Déconnecté.", "info")
     return redirect(url_for("login"))
 
+@app.route("/admin")
+@admin_requis
+def admin():
+    """Redirection vers /comptes pour compatibilité."""
+    return redirect(url_for("comptes"))
+
 @app.route("/comptes", methods=["GET","POST"])
 @admin_requis
 def comptes():
-    users = charger_users()
-    if request.method == "POST":
-        action = request.form.get("action")
-        if action == "ajouter":
-            username = request.form.get("username","").strip().lower()
-            nom      = request.form.get("nom","").strip()
-            mdp      = request.form.get("mdp","").strip()
-            role     = request.form.get("role","saisie")
-            if not username or not mdp:
-                flash("❌ Identifiant et mot de passe obligatoires.", "error")
-            elif username in users:
-                flash(f"❌ L'identifiant « {username} » existe déjà.", "error")
-            elif len(mdp) < 4:
-                flash("❌ Minimum 4 caractères.", "error")
-            else:
-                users[username] = {"mdp_hash": hasher_mdp(mdp), "role": role, "nom": nom or username}
-                sauvegarder_users(users)
-                flash(f"✅ Compte « {username} » créé.", "success")
-        elif action == "supprimer":
-            username = request.form.get("username","")
-            if username == session.get("utilisateur"):
-                flash("❌ Impossible de supprimer votre propre compte.", "error")
-            elif username in users:
-                del users[username]; sauvegarder_users(users)
-                flash(f"✅ Compte « {username} » supprimé.", "success")
-        elif action == "changer_mdp":
-            username = request.form.get("username","")
-            nouveau  = request.form.get("nouveau_mdp","").strip()
-            if len(nouveau) < 4:
-                flash("❌ Minimum 4 caractères.", "error")
-            elif username in users:
-                users[username]["mdp_hash"] = hasher_mdp(nouveau)
-                sauvegarder_users(users)
-                flash(f"✅ Mot de passe de « {username} » modifié.", "success")
-        return redirect(url_for("comptes"))
-    return render_template("comptes.html", concours=concours, users=users, moi=session.get("utilisateur"))
+    try:
+        users = charger_users()
+        if request.method == "POST":
+            action = request.form.get("action")
+            if action == "ajouter":
+                username = request.form.get("username","").strip().lower()
+                nom      = request.form.get("nom","").strip()
+                mdp      = request.form.get("mdp","").strip()
+                role     = request.form.get("role","saisie")
+                if not username or not mdp:
+                    flash("❌ Identifiant et mot de passe obligatoires.", "error")
+                elif username in users:
+                    flash(f"❌ L'identifiant « {username} » existe déjà.", "error")
+                elif len(mdp) < 4:
+                    flash("❌ Minimum 4 caractères.", "error")
+                else:
+                    users[username] = {"mdp_hash": hasher_mdp(mdp), "role": role, "nom": nom or username}
+                    sauvegarder_users(users)
+                    flash(f"✅ Compte « {username} » créé.", "success")
+            elif action == "supprimer":
+                username = request.form.get("username","")
+                if username == session.get("utilisateur"):
+                    flash("❌ Impossible de supprimer votre propre compte.", "error")
+                elif username in users:
+                    del users[username]; sauvegarder_users(users)
+                    flash(f"✅ Compte « {username} » supprimé.", "success")
+            elif action == "changer_mdp":
+                username = request.form.get("username","")
+                nouveau  = request.form.get("nouveau_mdp","").strip()
+                if len(nouveau) < 4:
+                    flash("❌ Minimum 4 caractères.", "error")
+                elif username in users:
+                    users[username]["mdp_hash"] = hasher_mdp(nouveau)
+                    sauvegarder_users(users)
+                    flash(f"✅ Mot de passe de « {username} » modifié.", "success")
+            return redirect(url_for("comptes"))
+        return render_template("comptes.html", concours=concours, users=users, moi=session.get("utilisateur"))
+    except Exception as e:
+        print(f"⚠️ Erreur comptes: {e}")
+        flash("⚠️ Erreur d'accès aux comptes.", "error")
+        return redirect(url_for("index"))
 
 @app.route("/mon_compte", methods=["GET","POST"])
 @login_requis
 def mon_compte():
-    if request.method == "POST":
-        users    = charger_users()
-        username = session["utilisateur"]
-        actuel   = request.form.get("actuel","")
-        nouveau  = request.form.get("nouveau","").strip()
-        confirm  = request.form.get("confirmation","").strip()
-        if users.get(username,{}).get("mdp_hash") != hasher_mdp(actuel):
-            flash("❌ Mot de passe actuel incorrect.", "error")
-        elif len(nouveau) < 4:
-            flash("❌ Minimum 4 caractères.", "error")
-        elif nouveau != confirm:
-            flash("❌ La confirmation ne correspond pas.", "error")
-        else:
-            users[username]["mdp_hash"] = hasher_mdp(nouveau)
-            sauvegarder_users(users)
-            flash("✅ Mot de passe modifié !", "success")
-    return render_template("mon_compte.html", concours=concours)
+    try:
+        if request.method == "POST":
+            users    = charger_users()
+            username = session["utilisateur"]
+            actuel   = request.form.get("actuel","")
+            nouveau  = request.form.get("nouveau","").strip()
+            confirm  = request.form.get("confirmation","").strip()
+            if users.get(username,{}).get("mdp_hash") != hasher_mdp(actuel):
+                flash("❌ Mot de passe actuel incorrect.", "error")
+            elif len(nouveau) < 4:
+                flash("❌ Minimum 4 caractères.", "error")
+            elif nouveau != confirm:
+                flash("❌ La confirmation ne correspond pas.", "error")
+            else:
+                users[username]["mdp_hash"] = hasher_mdp(nouveau)
+                sauvegarder_users(users)
+                flash("✅ Mot de passe modifié !", "success")
+        return render_template("mon_compte.html", concours=concours)
+    except Exception as e:
+        print(f"⚠️ Erreur mon_compte: {e}")
+        flash("⚠️ Erreur lors de la modification.", "error")
+        return redirect(url_for("index"))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -673,32 +741,37 @@ def index():
 @admin_requis
 def configurer():
     global concours
-    if request.method == "POST":
-        concours = Concours()
-        concours.nom                = request.form.get("nom","Concours de Pétanque")
-        concours.association        = request.form.get("association","Pétanque de Salles sur l'Hers")
-        concours.lieu               = request.form.get("lieu","Salles sur l'Hers")
-        concours.date_concours      = request.form.get("date_concours","")
-        concours.heure_debut        = request.form.get("heure_debut","09h00")
-        concours.contact            = request.form.get("contact","")
-        concours.description        = request.form.get("description","")
-        concours.type_equipe        = request.form.get("type_equipe","doublette")
-        concours.score_poules       = int(request.form.get("score_poules",7))
-        concours.score_finale       = int(request.form.get("score_finale",9))
-        concours.score_grande_finale= int(request.form.get("score_grande_finale",13))
-        concours.nb_tours           = int(request.form.get("nb_tours",5))
-        concours.tirage_aleatoire   = "tirage_aleatoire" in request.form
-        concours.restriction_club   = "restriction_club" in request.form
-        concours.avec_finale        = "avec_finale" in request.form
-        concours.nb_qualifies       = int(request.form.get("nb_qualifies",16))
-        places = request.form.getlist("lot_place")
-        descs  = request.form.getlist("lot_desc")
-        concours.lots = [{"place": int(p), "description": d}
-                         for p, d in zip(places, descs) if p and d.strip()]
-        sauvegarder_concours(concours)
-        flash("✅ Concours configuré !", "success")
-        return redirect(url_for("inscriptions"))
-    return render_template("configurer.html", concours=concours)
+    try:
+        if request.method == "POST":
+            concours = Concours()
+            concours.nom                = request.form.get("nom","Concours de Pétanque")
+            concours.association        = request.form.get("association","Pétanque de Salles sur l'Hers")
+            concours.lieu               = request.form.get("lieu","Salles sur l'Hers")
+            concours.date_concours      = request.form.get("date_concours","")
+            concours.heure_debut        = request.form.get("heure_debut","09h00")
+            concours.contact            = request.form.get("contact","")
+            concours.description        = request.form.get("description","")
+            concours.type_equipe        = request.form.get("type_equipe","doublette")
+            concours.score_poules       = int(request.form.get("score_poules",7))
+            concours.score_finale       = int(request.form.get("score_finale",9))
+            concours.score_grande_finale= int(request.form.get("score_grande_finale",13))
+            concours.nb_tours           = int(request.form.get("nb_tours",5))
+            concours.tirage_aleatoire   = "tirage_aleatoire" in request.form
+            concours.restriction_club   = "restriction_club" in request.form
+            concours.avec_finale        = "avec_finale" in request.form
+            concours.nb_qualifies       = int(request.form.get("nb_qualifies",16))
+            places = request.form.getlist("lot_place")
+            descs  = request.form.getlist("lot_desc")
+            concours.lots = [{"place": int(p), "description": d}
+                             for p, d in zip(places, descs) if p and d.strip()]
+            sauvegarder_concours(concours)
+            flash("✅ Concours configuré !", "success")
+            return redirect(url_for("inscriptions"))
+        return render_template("configurer.html", concours=concours)
+    except Exception as e:
+        print(f"⚠️ Erreur configurer: {e}")
+        flash("⚠️ Erreur lors de la configuration.", "error")
+        return render_template("configurer.html", concours=concours)
 
 @app.route("/inscriptions")
 @login_requis
@@ -718,10 +791,14 @@ def ajouter_equipe():
     nb_req  = 2 if concours.type_equipe == "doublette" else 3
     if joueurs and len(joueurs) != nb_req:
         flash(f"⚠️ Une {concours.type_equipe} doit avoir {nb_req} joueurs.", "warning")
-    concours.equipes.append(Equipe(id=concours._prochain_id_equipe, nom=nom, joueurs=joueurs, club=club))
-    concours._prochain_id_equipe += 1
-    sauvegarder_concours(concours)
-    flash(f"✅ Équipe « {nom} » inscrite !", "success")
+    try:
+        concours.equipes.append(Equipe(id=concours._prochain_id_equipe, nom=nom, joueurs=joueurs, club=club))
+        concours._prochain_id_equipe += 1
+        sauvegarder_concours(concours)
+        flash(f"✅ Équipe « {nom} » inscrite !", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur ajouter_equipe: {e}")
+        flash("❌ Erreur lors de l'inscription.", "error")
     return redirect(url_for("inscriptions"))
 
 @app.route("/supprimer_equipe/<int:equipe_id>", methods=["POST"])
@@ -730,9 +807,13 @@ def supprimer_equipe(equipe_id):
     if concours.statut != "inscription":
         flash("❌ Impossible après le début du concours.", "error")
         return redirect(url_for("inscriptions"))
-    concours.equipes = [e for e in concours.equipes if e.id != equipe_id]
-    sauvegarder_concours(concours)
-    flash("✅ Équipe supprimée.", "success")
+    try:
+        concours.equipes = [e for e in concours.equipes if e.id != equipe_id]
+        sauvegarder_concours(concours)
+        flash("✅ Équipe supprimée.", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur supprimer_equipe: {e}")
+        flash("❌ Erreur lors de la suppression.", "error")
     return redirect(url_for("inscriptions"))
 
 @app.route("/demarrer")
@@ -741,11 +822,15 @@ def demarrer():
     if len(concours.equipes) < 2:
         flash("❌ Il faut au moins 2 équipes.", "error")
         return redirect(url_for("inscriptions"))
-    concours.statut = "en_cours"
-    generer_tour_suisse()
-    sauvegarder_concours(concours)
-    label = "🎲 Tirage au sort ! " if concours.tirage_aleatoire else ""
-    flash(f"🎯 {label}Tour {concours.tour_actuel} généré.", "success")
+    try:
+        concours.statut = "en_cours"
+        generer_tour_suisse()
+        sauvegarder_concours(concours)
+        label = "🎲 Tirage au sort ! " if concours.tirage_aleatoire else ""
+        flash(f"🎯 {label}Tour {concours.tour_actuel} généré.", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur demarrer: {e}")
+        flash("❌ Erreur lors du démarrage.", "error")
     return redirect(url_for("matchs_tour", tour=concours.tour_actuel))
 
 @app.route("/tour/<int:tour>")
@@ -761,29 +846,33 @@ def matchs_tour(tour):
 def saisir_score(match_id):
     m = get_match(match_id)
     action = request.form.get("action","score")
-    if action == "forfait":
-        equipe_forfait_id = int(request.form.get("equipe_forfait_id", 0))
-        if declarer_forfait(match_id, equipe_forfait_id):
-            eq = get_equipe(equipe_forfait_id)
-            flash(f"🏳️ Forfait enregistré pour {eq.nom if eq else '?'}.", "warning")
-            sauvegarder_concours(concours)
-        return redirect(url_for("phase_finale") if m and m.est_finale
-                        else url_for("matchs_tour", tour=concours.tour_actuel))
     try:
-        score1 = int(request.form.get("score1",0))
-        score2 = int(request.form.get("score2",0))
-    except ValueError:
-        flash("❌ Scores invalides.", "error")
-        return redirect(url_for("matchs_tour", tour=concours.tour_actuel))
-    score_max = score_requis_pour_match(m) if m else concours.score_poules
-    if max(score1, score2) != score_max:
-        flash(f"❌ Le gagnant doit marquer exactement {score_max} points.", "error")
-        return redirect(url_for("phase_finale") if m and m.est_finale
-                        else url_for("matchs_tour", tour=concours.tour_actuel))
-    if enregistrer_score(match_id, score1, score2):
-        flash("🤝 Égalité — 0.5 pt chacun." if score1 == score2 else "✅ Score enregistré !",
-              "info" if score1 == score2 else "success")
-        sauvegarder_concours(concours)
+        if action == "forfait":
+            equipe_forfait_id = int(request.form.get("equipe_forfait_id", 0))
+            if declarer_forfait(match_id, equipe_forfait_id):
+                eq = get_equipe(equipe_forfait_id)
+                flash(f"🏳️ Forfait enregistré pour {eq.nom if eq else '?'}.", "warning")
+                sauvegarder_concours(concours)
+            return redirect(url_for("phase_finale") if m and m.est_finale
+                            else url_for("matchs_tour", tour=concours.tour_actuel))
+        try:
+            score1 = int(request.form.get("score1",0))
+            score2 = int(request.form.get("score2",0))
+        except ValueError:
+            flash("❌ Scores invalides.", "error")
+            return redirect(url_for("matchs_tour", tour=concours.tour_actuel))
+        score_max = score_requis_pour_match(m) if m else concours.score_poules
+        if max(score1, score2) != score_max:
+            flash(f"❌ Le gagnant doit marquer exactement {score_max} points.", "error")
+            return redirect(url_for("phase_finale") if m and m.est_finale
+                            else url_for("matchs_tour", tour=concours.tour_actuel))
+        if enregistrer_score(match_id, score1, score2):
+            flash("🤝 Égalité — 0.5 pt chacun." if score1 == score2 else "✅ Score enregistré !",
+                  "info" if score1 == score2 else "success")
+            sauvegarder_concours(concours)
+    except Exception as e:
+        print(f"⚠️ Erreur saisir_score: {e}")
+        flash("❌ Erreur lors de l'enregistrement.", "error")
     return redirect(url_for("phase_finale") if m and m.est_finale
                     else url_for("matchs_tour", tour=concours.tour_actuel))
 
@@ -793,21 +882,25 @@ def prochain_tour():
     if not tous_matchs_termines(concours.tour_actuel):
         flash("❌ Tous les matchs du tour actuel doivent être terminés.", "error")
         return redirect(url_for("matchs_tour", tour=concours.tour_actuel))
-    if concours.tour_actuel >= concours.nb_tours:
-        if concours.avec_finale:
-            generer_phase_finale()
-            concours.statut = "finale"
+    try:
+        if concours.tour_actuel >= concours.nb_tours:
+            if concours.avec_finale:
+                generer_phase_finale()
+                concours.statut = "finale"
+                sauvegarder_concours(concours)
+                flash(f"🏆 Phase finale ! {concours.nb_qualifies} équipes qualifiées.", "success")
+                return redirect(url_for("phase_finale"))
+            concours.statut = "termine"
+            archiver_concours(concours)
             sauvegarder_concours(concours)
-            flash(f"🏆 Phase finale ! {concours.nb_qualifies} équipes qualifiées.", "success")
-            return redirect(url_for("phase_finale"))
-        concours.statut = "termine"
-        archiver_concours(concours)
+            flash("🏆 Concours terminé et archivé !", "success")
+            return redirect(url_for("classement_final"))
+        generer_tour_suisse()
         sauvegarder_concours(concours)
-        flash("🏆 Concours terminé et archivé !", "success")
-        return redirect(url_for("classement_final"))
-    generer_tour_suisse()
-    sauvegarder_concours(concours)
-    flash(f"✅ Tour {concours.tour_actuel} généré !", "success")
+        flash(f"✅ Tour {concours.tour_actuel} généré !", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur prochain_tour: {e}")
+        flash("❌ Erreur lors de la génération du tour.", "error")
     return redirect(url_for("matchs_tour", tour=concours.tour_actuel))
 
 @app.route("/finale")
@@ -825,10 +918,14 @@ def terminer_finale():
     if not tous_matchs_finale_termines():
         flash("❌ Tous les matchs de la finale doivent être terminés.", "error")
         return redirect(url_for("phase_finale"))
-    concours.statut = "termine"
-    archiver_concours(concours)
-    sauvegarder_concours(concours)
-    flash("🏆 Concours terminé et archivé !", "success")
+    try:
+        concours.statut = "termine"
+        archiver_concours(concours)
+        sauvegarder_concours(concours)
+        flash("🏆 Concours terminé et archivé !", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur terminer_finale: {e}")
+        flash("❌ Erreur lors de la finalisation.", "error")
     return redirect(url_for("classement_final"))
 
 @app.route("/classement")
@@ -852,44 +949,54 @@ def archives():
 @app.route("/archives/<fichier>/supprimer", methods=["POST"])
 @admin_requis
 def supprimer_archive(fichier):
-    if archive_delete(fichier):
-        flash("✅ Concours supprimé des archives.", "success")
-    else:
-        flash("❌ Archive introuvable.", "error")
+    try:
+        if archive_delete(fichier):
+            flash("✅ Concours supprimé des archives.", "success")
+        else:
+            flash("❌ Archive introuvable.", "error")
+    except Exception as e:
+        print(f"⚠️ Erreur supprimer_archive: {e}")
+        flash("❌ Erreur lors de la suppression.", "error")
     return redirect(url_for("archives"))
 
 @app.route("/archives/<fichier>")
 @login_requis
 def voir_archive(fichier):
-    data = charger_archive(fichier)
-    if not data:
-        flash("❌ Archive introuvable.", "error")
+    try:
+        data = charger_archive(fichier)
+        if not data:
+            flash("❌ Archive introuvable.", "error")
+            return redirect(url_for("archives"))
+        return render_template("archive_detail.html", concours=concours, data=data, fichier=fichier)
+    except Exception as e:
+        print(f"⚠️ Erreur voir_archive: {e}")
+        flash("❌ Erreur lors de la lecture.", "error")
         return redirect(url_for("archives"))
-    return render_template("archive_detail.html", concours=concours, data=data, fichier=fichier)
 
 @app.route("/archives/<fichier>/imprimer")
 @login_requis
 def imprimer_archive(fichier):
-    data = charger_archive(fichier)
-    if not data:
-        flash("❌ Archive introuvable.", "error")
-        return redirect(url_for("archives"))
-    equipes = sorted(data.get("equipes",[]),
-        key=lambda e: (-e.get("points",0), -(e.get("paniers_marques",0)-e.get("paniers_encaisses",0))))
-    lignes = ""
-    for i, e in enumerate(equipes, 1):
-        med = {1:"🥇",2:"🥈",3:"🥉"}.get(i, str(i))
-        pts = e.get("points",0)
-        pts_str = str(int(pts)) if pts == int(pts) else str(pts)
-        diff = e.get("paniers_marques",0) - e.get("paniers_encaisses",0)
-        lignes += f"<tr><td>{med}</td><td style='text-align:left;font-weight:bold'>{e['nom']}</td><td>{pts_str}</td><td>{e.get('paniers_marques',0)}</td><td>{e.get('paniers_encaisses',0)}</td><td>{'+' if diff>0 else ''}{diff}</td></tr>"
-    lots_html = ""
-    for lot in sorted(data.get("lots",[]), key=lambda l: l.get("place",99)):
-        med = {1:"🥇",2:"🥈",3:"🥉"}.get(lot["place"], f"{lot['place']}e")
-        lots_html += f"<tr><td>{med}</td><td>{lot['description']}</td></tr>"
-    if lots_html:
-        lots_html = f"<h2>🎁 Lots</h2><table><tr><th>Place</th><th>Lot</th></tr>{lots_html}</table>"
-    html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{data.get('nom','')}</title>
+    try:
+        data = charger_archive(fichier)
+        if not data:
+            flash("❌ Archive introuvable.", "error")
+            return redirect(url_for("archives"))
+        equipes = sorted(data.get("equipes",[]),
+            key=lambda e: (-e.get("points",0), -(e.get("paniers_marques",0)-e.get("paniers_encaisses",0))))
+        lignes = ""
+        for i, e in enumerate(equipes, 1):
+            med = {1:"🥇",2:"🥈",3:"🥉"}.get(i, str(i))
+            pts = e.get("points",0)
+            pts_str = str(int(pts)) if pts == int(pts) else str(pts)
+            diff = e.get("paniers_marques",0) - e.get("paniers_encaisses",0)
+            lignes += f"<tr><td>{med}</td><td style='text-align:left;font-weight:bold'>{e['nom']}</td><td>{pts_str}</td><td>{e.get('paniers_marques',0)}</td><td>{e.get('paniers_encaisses',0)}</td><td>{'+' if diff>0 else ''}{diff}</td></tr>"
+        lots_html = ""
+        for lot in sorted(data.get("lots",[]), key=lambda l: l.get("place",99)):
+            med = {1:"🥇",2:"🥈",3:"🥉"}.get(lot["place"], f"{lot['place']}e")
+            lots_html += f"<tr><td>{med}</td><td>{lot['description']}</td></tr>"
+        if lots_html:
+            lots_html = f"<h2>🎁 Lots</h2><table><tr><th>Place</th><th>Lot</th></tr>{lots_html}</table>"
+        html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{data.get('nom','')}</title>
 <style>@page{{size:A4;margin:1.5cm}}*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:Georgia,serif;font-size:12px}}
 .entete{{text-align:center;border-bottom:3px double #1A3A5C;padding-bottom:1rem;margin-bottom:1.5rem}}
 h1{{font-size:22px;color:#1A3A5C}}h2{{font-size:15px;color:#1A3A5C;margin:1.5rem 0 .5rem}}
@@ -906,17 +1013,25 @@ td{{padding:5px 8px;border-bottom:1px solid #ddd;text-align:center}}
 <h2>🏆 Classement final</h2>
 <table><tr><th>Pos.</th><th>Équipe</th><th>Points</th><th>Paniers +</th><th>Paniers −</th><th>Diff.</th></tr>{lignes}</table>
 </body></html>"""
-    return Response(html, mimetype="text/html")
+        return Response(html, mimetype="text/html")
+    except Exception as e:
+        print(f"⚠️ Erreur imprimer_archive: {e}")
+        flash("❌ Erreur lors de l'impression.", "error")
+        return redirect(url_for("archives"))
 
 @app.route("/reset", methods=["POST"])
 @admin_requis
 def reset():
     global concours
-    if concours.equipes and concours.statut != "inscription":
-        archiver_concours(concours)
-    concours = Concours()
-    kv_delete("concours_data")
-    flash("🔄 Nouveau concours créé.", "info")
+    try:
+        if concours.equipes and concours.statut != "inscription":
+            archiver_concours(concours)
+        concours = Concours()
+        kv_delete("concours_data")
+        flash("🔄 Nouveau concours créé.", "info")
+    except Exception as e:
+        print(f"⚠️ Erreur reset: {e}")
+        flash("❌ Erreur lors de la réinitialisation.", "error")
     return redirect(url_for("configurer"))
 
 @app.route("/api/stats")
@@ -938,67 +1053,62 @@ def api_stats():
 def resultats_publics():
     concours_list = []
 
-    # Concours en cours
-    data = kv_get("concours_data")
-    if data:
-        try:
-            equipes    = data.get("equipes", [])
-            statut_raw = data.get("statut", "inscription")
-            # Si le concours est terminé, il est déjà dans les archives — on l'ignore ici
-            if statut_raw == "termine":
-                data = None
-        except Exception:
-            data = None
-    if data:
-        try:
-            equipes    = data.get("equipes", [])
-            statut_raw = data.get("statut", "inscription")
-            if statut_raw in ("en_cours", "finale"):
-                js_status = "en-cours"
-            else:
-                js_status = "a-venir"
-            concours_list.append({
-                "id"          : "encours",
-                "nom"         : data.get("nom", "Concours en cours"),
-                "date"        : data.get("date_concours", ""),
-                "heure"       : data.get("heure_debut", ""),
-                "lieu"        : data.get("lieu", ""),
-                "description" : data.get("description", ""),
-                "lots"        : _format_lots(data.get("lots", [])),
-                "tours"       : data.get("nb_tours", 5),
-                "score_poules": data.get("score_poules", 7),
-                "equipes"     : len(equipes) if equipes else None,
-                "contact"     : data.get("contact", ""),
-                "status"      : js_status,
-                "classement"  : _build_classement_from_raw(equipes),
-            })
-        except Exception as ex:
-            print(f"[resultats_publics] Erreur concours en cours : {ex}")
+    try:
+        data = kv_get("concours_data")
+        if data:
+            try:
+                equipes    = data.get("equipes", [])
+                statut_raw = data.get("statut", "inscription")
+                if statut_raw in ("en_cours", "finale"):
+                    js_status = "en-cours"
+                else:
+                    js_status = "a-venir"
+                concours_list.append({
+                    "id"          : "encours",
+                    "nom"         : data.get("nom", "Concours en cours"),
+                    "date"        : data.get("date_concours", ""),
+                    "heure"       : data.get("heure_debut", ""),
+                    "lieu"        : data.get("lieu", ""),
+                    "description" : data.get("description", ""),
+                    "lots"        : _format_lots(data.get("lots", [])),
+                    "tours"       : data.get("nb_tours", 5),
+                    "score_poules": data.get("score_poules", 7),
+                    "equipes"     : len(equipes) if equipes else None,
+                    "contact"     : data.get("contact", ""),
+                    "status"      : js_status,
+                    "classement"  : _build_classement_from_raw(equipes),
+                })
+            except Exception as ex:
+                print(f"[resultats_publics] Erreur concours en cours : {ex}")
+    except Exception as e:
+        print(f"[resultats_publics] Erreur accès BD: {e}")
 
-    # Archives
-    for arch in archive_list():
-        try:
-            data = archive_get(arch["filename"])
-            if not data:
-                continue
-            equipes = data.get("equipes", [])
-            concours_list.append({
-                "id"          : arch["filename"].replace(".json", ""),
-                "nom"         : data.get("nom", arch["filename"]),
-                "date"        : data.get("date_concours", ""),
-                "heure"       : data.get("heure_debut", ""),
-                "lieu"        : data.get("lieu", ""),
-                "description" : data.get("description", ""),
-                "lots"        : _format_lots(data.get("lots", [])),
-                "tours"       : data.get("nb_tours", 5),
-                "score_poules": data.get("score_poules", 7),
-                "equipes"     : len(equipes) if equipes else None,
-                "contact"     : data.get("contact", ""),
-                "status"      : "termine",
-                "classement"  : _build_classement_from_raw(equipes),
-            })
-        except Exception as ex:
-            print(f"[resultats_publics] Erreur archive {arch['filename']} : {ex}")
+    try:
+        for arch in charger_archives():
+            try:
+                data = charger_archive(arch["filename"])
+                if not data:
+                    continue
+                equipes = data.get("equipes", [])
+                concours_list.append({
+                    "id"          : arch["filename"].replace(".json", ""),
+                    "nom"         : data.get("nom", arch["filename"]),
+                    "date"        : data.get("date_concours", ""),
+                    "heure"       : data.get("heure_debut", ""),
+                    "lieu"        : data.get("lieu", ""),
+                    "description" : data.get("description", ""),
+                    "lots"        : _format_lots(data.get("lots", [])),
+                    "tours"       : data.get("nb_tours", 5),
+                    "score_poules": data.get("score_poules", 7),
+                    "equipes"     : len(equipes) if equipes else None,
+                    "contact"     : data.get("contact", ""),
+                    "status"      : "termine",
+                    "classement"  : _build_classement_from_raw(equipes),
+                })
+            except Exception as ex:
+                print(f"[resultats_publics] Erreur archive {arch['filename']} : {ex}")
+    except Exception as e:
+        print(f"[resultats_publics] Erreur archives: {e}")
 
     return render_template(
         "public_resultats.html",
@@ -1043,17 +1153,15 @@ def _format_lots(lots: list) -> str:
             parties.append(f"{medaille} : {desc}")
     return " · ".join(parties)
 
+
+# ═══════════════════════════════════════════════════════════
+# ROUTES DE SANTÉ
+# ═══════════════════════════════════════════════════════════
+
 @app.route("/health", methods=["GET"])
 def health():
-    """Healthcheck pour Render"""
-    return {"status": "ok", "app": "petanque"}, 200
-  
-if __name__ == "__main__":
-    charger_users()
-    print("\n🎯 Pétanque - Salles sur l'Hers v5")
-    print("👉 http://localhost:5000")
-    print("🔐 admin / petanque\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    """Healthcheck pour Render."""
+    return jsonify({"status": "ok", "app": "petanque"}), 200
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1065,14 +1173,17 @@ import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-SMTP_CONFIG_FILE = Path("smtp_config.json")
 _reset_tokens: dict = {}
 
 
 def charger_smtp_config() -> dict:
-    data = kv_get("smtp_config")
-    if data:
-        return data
+    try:
+        data = kv_get("smtp_config")
+        if data:
+            return data
+    except Exception as e:
+        print(f"⚠️ Erreur charger_smtp_config: {e}")
+    
     default = {
         "smtp_host": "smtp.gmail.com",
         "smtp_port": 587,
@@ -1081,31 +1192,34 @@ def charger_smtp_config() -> dict:
         "from_email": "",
         "from_name": "Pétanque Salles sur l'Hers"
     }
-    kv_set("smtp_config", default)
+    try:
+        kv_set("smtp_config", default)
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarde smtp_config: {e}")
     return default
 
 
 def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
-    cfg = charger_smtp_config()
-    if not cfg.get("smtp_user") or not cfg.get("smtp_password"):
-        return False
-    lien = f"https://app-petanque.onrender.com/reset-mdp/{token}"
-    corps_html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
-      <h2 style="color:#1A3A5C;">Réinitialisation de mot de passe</h2>
-      <p>Bonjour <strong>{username}</strong>,</p>
-      <p>Une demande de réinitialisation de mot de passe a été effectuée pour votre compte.</p>
-      <p style="margin:1.5rem 0;">
-        <a href="{lien}" style="background:#F5A623;color:#111;padding:.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Réinitialiser mon mot de passe
-        </a>
-      </p>
-      <p style="color:#666;font-size:.85rem;">Ce lien est valable 30 minutes.</p>
-      <hr style="border:none;border-top:1px solid #eee;margin:1.5rem 0;">
-      <p style="color:#999;font-size:.8rem;">{cfg.get('from_name','Pétanque')}</p>
-    </div>
-    """
     try:
+        cfg = charger_smtp_config()
+        if not cfg.get("smtp_user") or not cfg.get("smtp_password"):
+            return False
+        lien = f"https://app-petanque.onrender.com/reset-mdp/{token}"
+        corps_html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
+          <h2 style="color:#1A3A5C;">Réinitialisation de mot de passe</h2>
+          <p>Bonjour <strong>{username}</strong>,</p>
+          <p>Une demande de réinitialisation de mot de passe a été effectuée pour votre compte.</p>
+          <p style="margin:1.5rem 0;">
+            <a href="{lien}" style="background:#F5A623;color:#111;padding:.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:bold;">
+              Réinitialiser mon mot de passe
+            </a>
+          </p>
+          <p style="color:#666;font-size:.85rem;">Ce lien est valable 30 minutes.</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:1.5rem 0;">
+          <p style="color:#999;font-size:.8rem;">{cfg.get('from_name','Pétanque')}</p>
+        </div>
+        """
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Réinitialisation de mot de passe — Pétanque"
         msg["From"]    = f"{cfg['from_name']} <{cfg['from_email'] or cfg['smtp_user']}>"
@@ -1125,17 +1239,21 @@ def envoyer_email_reset(dest_email: str, username: str, token: str) -> bool:
 def mot_de_passe_oublie():
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
-        users = charger_users()
-        user  = users.get(username)
-        if user and user.get("email"):
-            token  = secrets.token_urlsafe(32)
-            expire = datetime.now().timestamp() + 1800
-            _reset_tokens[token] = {"username": username, "expire": expire}
-            if envoyer_email_reset(user["email"], username, token):
-                flash(f"✅ Email envoyé à l'adresse enregistrée pour « {username} ».", "success")
+        try:
+            users = charger_users()
+            user  = users.get(username)
+            if user and user.get("email"):
+                token  = secrets.token_urlsafe(32)
+                expire = datetime.now().timestamp() + 1800
+                _reset_tokens[token] = {"username": username, "expire": expire}
+                if envoyer_email_reset(user["email"], username, token):
+                    flash(f"✅ Email envoyé à l'adresse enregistrée pour « {username} ».", "success")
+                else:
+                    flash("❌ Erreur d'envoi. Vérifiez la configuration SMTP.", "error")
             else:
-                flash("❌ Erreur d'envoi. Vérifiez la configuration SMTP.", "error")
-        else:
+                flash("✅ Si ce compte existe et a une adresse email, un lien a été envoyé.", "info")
+        except Exception as e:
+            print(f"⚠️ Erreur mot_de_passe_oublie: {e}")
             flash("✅ Si ce compte existe et a une adresse email, un lien a été envoyé.", "info")
         return redirect(url_for("login"))
     return render_template("mdp_oublie.html")
@@ -1156,42 +1274,66 @@ def reset_mdp_token(token):
         elif nouveau != confirm:
             flash("❌ Les mots de passe ne correspondent pas.", "error")
         else:
-            users    = charger_users()
-            username = token_data["username"]
-            if username in users:
-                users[username]["mdp_hash"] = hasher_mdp(nouveau)
-                sauvegarder_users(users)
-                _reset_tokens.pop(token, None)
-                flash("✅ Mot de passe modifié ! Vous pouvez vous connecter.", "success")
-                return redirect(url_for("login"))
+            try:
+                users    = charger_users()
+                username = token_data["username"]
+                if username in users:
+                    users[username]["mdp_hash"] = hasher_mdp(nouveau)
+                    sauvegarder_users(users)
+                    _reset_tokens.pop(token, None)
+                    flash("✅ Mot de passe modifié ! Vous pouvez vous connecter.", "success")
+                    return redirect(url_for("login"))
+            except Exception as e:
+                print(f"⚠️ Erreur reset_mdp_token: {e}")
+                flash("❌ Erreur lors de la modification.", "error")
     return render_template("reset_mdp.html", token=token)
 
 
 @app.route("/smtp-config", methods=["GET", "POST"])
 @admin_requis
 def smtp_config():
-    cfg = charger_smtp_config()
-    if request.method == "POST":
-        cfg["smtp_host"]     = request.form.get("smtp_host", "smtp.gmail.com")
-        cfg["smtp_port"]     = int(request.form.get("smtp_port", 587))
-        cfg["smtp_user"]     = request.form.get("smtp_user", "")
-        cfg["smtp_password"] = request.form.get("smtp_password", "")
-        cfg["from_email"]    = request.form.get("from_email", "")
-        cfg["from_name"]     = request.form.get("from_name", "Pétanque")
-        kv_set("smtp_config", cfg)
-        flash("✅ Configuration SMTP sauvegardée.", "success")
+    try:
+        cfg = charger_smtp_config()
+        if request.method == "POST":
+            cfg["smtp_host"]     = request.form.get("smtp_host", "smtp.gmail.com")
+            cfg["smtp_port"]     = int(request.form.get("smtp_port", 587))
+            cfg["smtp_user"]     = request.form.get("smtp_user", "")
+            cfg["smtp_password"] = request.form.get("smtp_password", "")
+            cfg["from_email"]    = request.form.get("from_email", "")
+            cfg["from_name"]     = request.form.get("from_name", "Pétanque")
+            kv_set("smtp_config", cfg)
+            flash("✅ Configuration SMTP sauvegardée.", "success")
+            return redirect(url_for("comptes"))
+        return render_template("smtp_config.html", concours=concours, cfg=cfg)
+    except Exception as e:
+        print(f"⚠️ Erreur smtp_config: {e}")
+        flash("⚠️ Erreur lors de la configuration SMTP.", "error")
         return redirect(url_for("comptes"))
-    return render_template("smtp_config.html", concours=concours, cfg=cfg)
 
 
 @app.route("/ajouter_email_compte", methods=["POST"])
 @admin_requis
 def ajouter_email_compte():
-    users    = charger_users()
-    username = request.form.get("username", "")
-    email    = request.form.get("email", "").strip()
-    if username in users:
-        users[username]["email"] = email
-        sauvegarder_users(users)
-        flash(f"✅ Email de « {username} » mis à jour.", "success")
+    try:
+        users    = charger_users()
+        username = request.form.get("username", "")
+        email    = request.form.get("email", "").strip()
+        if username in users:
+            users[username]["email"] = email
+            sauvegarder_users(users)
+            flash(f"✅ Email de « {username} » mis à jour.", "success")
+    except Exception as e:
+        print(f"⚠️ Erreur ajouter_email_compte: {e}")
+        flash("❌ Erreur lors de la mise à jour.", "error")
     return redirect(url_for("comptes"))
+
+
+# ═══════════════════════════════════════════════════════════
+# DÉMARRAGE
+# ═══════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    print("\n🎯 Pétanque - Salles sur l'Hers v5 [FIXED]")
+    print("👉 http://localhost:5000")
+    print("🔐 admin / petanque\n")
+    app.run(debug=True, host="0.0.0.0", port=5000)
